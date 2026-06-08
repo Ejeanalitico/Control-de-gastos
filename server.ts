@@ -266,6 +266,20 @@ async function startServer() {
     }
   });
 
+  app.put("/api/eventos/:id", async (req, res) => {
+    try {
+      const { Titulo_Actividad, Titulo, Pilar, Pilar_Asociado, Descripcion_Detallada, Descripcion, Fecha_Hora_Inicio, Fecha_Hora_Fin, Color } = req.body;
+      await queryRun(`
+        UPDATE eventos 
+        SET Titulo_Actividad = ?, Titulo = ?, Pilar = ?, Pilar_Asociado = ?, Descripcion_Detallada = ?, Descripcion = ?, Fecha_Hora_Inicio = ?, Fecha_Hora_Fin = ?, Color = ?
+        WHERE ID_Actividad = ?
+      `, [Titulo_Actividad, Titulo, Pilar, Pilar_Asociado, Descripcion_Detallada, Descripcion, Fecha_Hora_Inicio, Fecha_Hora_Fin, Color, req.params.id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.delete("/api/eventos/:id", async (req, res) => {
     try {
       await queryRun("DELETE FROM eventos WHERE ID_Actividad = ?", [req.params.id]);

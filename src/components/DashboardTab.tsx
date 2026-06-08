@@ -96,6 +96,17 @@ export default function DashboardTab({
   const [formSuccess, setFormSuccess] = useState<string>("");
   const [formError, setFormError] = useState<string>("");
 
+  // --- FLOATING DAY ACTIVITIES MODAL STATE ---
+  const [showDayModal, setShowDayModal] = useState<boolean>(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [editTitulo, setEditTitulo] = useState<string>("");
+  const [editPilar, setEditPilar] = useState<CategoriaPilar>(CategoriaPilar.SALUD);
+  const [editDesc, setEditDesc] = useState<string>("");
+  const [editHoraInicio, setEditHoraInicio] = useState<string>("10:00");
+  const [editHoraFin, setEditHoraFin] = useState<string>("11:00");
+  const [editSuccess, setEditSuccess] = useState<string>("");
+  const [editError, setEditError] = useState<string>("");
+
   // --- GOOGLE CALENDAR SYNC EFFECT ---
   useEffect(() => {
     const fetchGoogleCalendar = async () => {
@@ -406,19 +417,83 @@ export default function DashboardTab({
     }
   };
 
-  // Rule metrics calculations
-  const healthStatus = useMemo(() => {
-    const saludSpent = egresos.filter(e => e.Categoria_Pilar === CategoriaPilar.SALUD).reduce((s, e) => s + e.Monto, 0);
-    const basePersonal = totalIncomes * (activeUser.Salud_Personal_Base_Porcentaje || 0.20);
-    const personalSpent = egresos.filter(e => e.Categoria_Pilar === CategoriaPilar.PERSONAL).reduce((s, e) => s + e.Monto, 0);
-    const remainingPersonal = Math.max(0, basePersonal - saludSpent);
-    return {
-      saludSpent,
-      personalSpent,
-      remainingPersonal,
-      warning: personalSpent > remainingPersonal
-    };
-  }, [egresos, totalIncomes, activeUser]);
+  const handleDeleteEvent = async (id: string) => {
+    if (!window.confirm("¿Seguro que deseas eliminar esta actividad permanentemente?")) return;
+
+    try {
+      const res = await fetch(`/api/eventos/${id}`, {
+        method: "DELETE"
+      });
+      if (!res.ok) throw new Error("Fallo al eliminar de la base de datos.");
+
+      setEventos(prev => prev.filter(ev => ev.ID_Actividad !== id));
+      setEditSuccess("Actividad eliminada con éxito.");
+      setTimeout(() => setEditSuccess(""), 3000);
+    } catch (err: any) {
+      setEditError(err.message || "Error al eliminar.");
+      setTimeout(() => setEditError(""), 3000);
+    }
+  };
+
+  const handleUpdateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEventId) return;
+
+    setEditError("");
+    setEditSuccess("");
+
+    try {
+      const eventToEdit = eventos.find(ev => ev.ID_Actividad === editingEventId);
+      if (!eventToEdit) throw new Error("Actividad no encontrada.");
+
+      const updatedColor = 
+        editPilar === CategoriaPilar.SALUD ? "green" 
+        : editPilar === CategoriaPilar.ESCOLAR ? "blue"
+        : editPilar === CategoriaPilar.LABORAL ? "indigo"
+        : editPilar === CategoriaPilar.PERSONAL ? "orange"
+        : "purple";
+
+      const dateOnly = eventToEdit.Fecha;
+      const startDateTime = `${dateOnly}T${editHoraInicio}`;
+      const endDateTime = `${dateOnly}T${editHoraFin}`;
+
+      const updatedPayload = {
+        Titulo_Actividad: editTitulo,
+        Titulo: editTitulo,
+        Pilar: editPilar,
+        Pilar_Asociado: editPilar,
+        Descripcion_Detallada: editDesc,
+        Descripcion: editDesc,
+        Fecha_Hora_Inicio: startDateTime,
+        Fecha_Hora_Fin: endDateTime,
+        Color: updatedColor
+      };
+
+      const res = await fetch(`/api/eventos/${editingEventId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedPayload)
+      });
+
+      if (!res.ok) throw new Error("Fallo al guardar cambios en servidor.");
+
+      setEventos(prev => prev.map(ev => 
+        ev.ID_Actividad === editingEventId 
+          ? { ...ev, ...updatedPayload } 
+          : ev
+      ));
+
+      setEditSuccess("¡Actividad actualizada correctamente!");
+      setTimeout(() => {
+        setEditSuccess("");
+        setEditingEventId(null);
+      }, 1500);
+    } catch (err: any) {
+      setEditError(err.message || "Error al actualizar.");
+    }
+  };
+
+
 
   const periodicItems = useMemo(() => {
     const list: Array<{ name: string; category: string; amount: number; period: string; color: string; detail: string }> = [];
@@ -480,7 +555,6 @@ export default function DashboardTab({
     return list;
   }, [egresos, deudas]);
 
-
   return (
     <div className="space-y-8 animate-fadeIn font-sans">
       
@@ -536,234 +610,91 @@ export default function DashboardTab({
         </div>
       </div>
 
-      {/* 2. Apple Calendar Month Grid (Primary View) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Visual Monthly Calendar Grid (Left 2 cols) */}
-        <div className={`lg:col-span-2 p-6 rounded-[2rem] border transition-all ${
-          darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
-        }`}>
-          {/* Calendar Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-teal-500" />
-              <h2 className={`text-sm font-bold uppercase tracking-wider ${darkMode ? "text-white" : "text-stone-900"}`}>
-                Agenda Mensual
-              </h2>
-              {gcalLoading && (
-                <span className="text-[10px] text-stone-500 font-medium animate-pulse">Sincronizando Google Calendar...</span>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <button onClick={handlePrevMonth} className={`p-1.5 rounded-xl border hover:bg-stone-500/10 cursor-pointer ${darkMode ? "border-stone-850" : "border-stone-200"}`}>
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className={`text-xs font-bold ${darkMode ? "text-white" : "text-stone-900"}`}>
-                {monthNames[currentMonth]} {currentYear}
-              </span>
-              <button onClick={handleNextMonth} className={`p-1.5 rounded-xl border hover:bg-stone-500/10 cursor-pointer ${darkMode ? "border-stone-850" : "border-stone-200"}`}>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+      {/* 2. Registro de Actividades o Eventos (Pilar Entry Card - Moved First!) */}
+      <div className={`p-6 rounded-[2.5rem] border transition-all ${
+        darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
+      }`}>
+        <h3 className={`text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-1.5 ${darkMode ? "text-stone-300" : "text-stone-850"}`}>
+          <PlusCircle className="w-4 h-4 text-teal-500 animate-pulse" />
+          <span>Registrar Actividad o Evento</span>
+        </h3>
 
-          {/* Grid Layout */}
-          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-stone-500 uppercase tracking-widest border-b pb-2 border-stone-200 dark:border-stone-850">
-            {daysOfWeek.map(d => <div key={d}>{d}</div>)}
-          </div>
+        {formSuccess && <div className="p-3 text-xs rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 mb-4 font-semibold">{formSuccess}</div>}
+        {formError && <div className="p-3 text-xs rounded-xl bg-rose-500/10 text-rose-450 border border-rose-500/20 mb-4 font-semibold">{formError}</div>}
 
-          <div className="grid grid-cols-7 gap-1 mt-2">
-            {calendarDays.map((cDay, idx) => {
-              const hasEvents = cDay.dayNum !== null;
-              const dateEvents = hasEvents 
-                ? allEventsCombined.filter(e => e.Fecha === cDay.dateStr)
-                : [];
-              const isSelected = hasEvents && cDay.dateStr === selectedDateStr;
-
-              return (
-                <div
-                  key={idx}
-                  onClick={() => {
-                    if (hasEvents) setSelectedDateStr(cDay.dateStr);
-                  }}
-                  className={`min-h-[105px] p-2 border flex flex-col justify-start transition-all cursor-pointer ${
-                    !hasEvents ? "bg-transparent border-transparent cursor-default"
-                    : isSelected 
-                      ? darkMode
-                        ? "bg-stone-900/60 border-teal-500/50"
-                        : "bg-stone-50 border-teal-500/50 shadow-sm"
-                      : darkMode 
-                        ? "bg-[#161616]/40 border-stone-900 text-stone-300 hover:border-stone-800" 
-                        : "bg-white border-stone-150 text-stone-800 hover:bg-stone-50"
-                  }`}
-                >
-                  {/* Day number with selected circular badge */}
-                  <div className="flex items-center justify-between w-full mb-1">
-                    {hasEvents && (
-                      isSelected ? (
-                        <span className="w-5 h-5 rounded-full bg-teal-500 text-white flex items-center justify-center text-[10px] font-bold">
-                          {cDay.dayNum}
-                        </span>
-                      ) : (
-                        <span className={`text-[10px] font-bold ${
-                          cDay.dayNum === 1 ? (darkMode ? "text-stone-400" : "text-stone-600") : (darkMode ? "text-stone-500" : "text-stone-400")
-                        }`}>
-                          {cDay.dayNum === 1 ? `1 de ${monthNames[currentMonth].slice(0, 3).toLowerCase()}` : cDay.dayNum}
-                        </span>
-                      )
-                    )}
-                  </div>
-                  
-                  {/* Event list stacked vertically */}
-                  <div className="space-y-1 overflow-hidden w-full flex-grow flex flex-col justify-start">
-                    {dateEvents.slice(0, 3).map((e, index) => {
-                      const dotColorClass = 
-                        e.Color === "green" ? "bg-emerald-500"
-                        : e.Color === "blue" || e.Color === "indigo" ? "bg-sky-400"
-                        : e.Color === "orange" ? "bg-amber-500"
-                        : e.Color === "purple" ? "bg-purple-400"
-                        : "bg-rose-500";
-
-                      // Extract time from Fecha_Hora_Inicio (e.g. "2026-06-08T10:00")
-                      let timeStr = "";
-                      if (e.Fecha_Hora_Inicio && e.Fecha_Hora_Inicio.includes("T")) {
-                        const rawTime = e.Fecha_Hora_Inicio.split("T")[1];
-                        const parts = rawTime.split(":");
-                        if (parts.length >= 2) {
-                          const hour = parseInt(parts[0], 10);
-                          const min = parts[1];
-                          const ampm = hour >= 12 ? "pm" : "am";
-                          const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-                          timeStr = `${displayHour}:${min}${ampm}`;
-                        }
-                      }
-
-                      return (
-                        <div 
-                          key={index} 
-                          title={`${timeStr ? timeStr + " " : ""}${e.Titulo_Actividad || e.Titulo}`}
-                          className="flex items-center gap-1.5 text-[9px] font-medium leading-none truncate w-full text-stone-600 dark:text-stone-300 select-none py-0.5"
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColorClass}`} />
-                          <span className="truncate">
-                            {timeStr && <span className="opacity-75 font-semibold mr-1">{timeStr}</span>}
-                            {e.Titulo_Actividad || e.Titulo}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    {dateEvents.length > 3 && (
-                      <div className="text-[8px] font-bold text-stone-500 text-left pl-3 leading-none mt-0.5">
-                        +{dateEvents.length - 3} más
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Selected Day Agenda Detail panel (Right 1 col) */}
-        <div className={`p-6 rounded-[2rem] border transition-all ${
-          darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
-        } flex flex-col justify-between`}>
-          <div>
-            <div className="flex items-center justify-between mb-4 border-b pb-2 border-stone-200 dark:border-stone-850">
-              <h3 className={`text-xs font-bold uppercase tracking-wider ${darkMode ? "text-white" : "text-stone-900"}`}>
-                Actividades: {selectedDateStr}
-              </h3>
-              <span className="text-[9px] font-mono text-stone-500">
-                {selectedDayEvents.length} eventos
-              </span>
-            </div>
-
-            {/* List Events for Selected Day */}
-            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-              {selectedDayEvents.length === 0 ? (
-                <p className="text-xs text-stone-500 text-center py-8">No hay actividades registradas en esta fecha.</p>
-              ) : (
-                selectedDayEvents.map((ev) => (
-                  <div key={ev.ID_Actividad} className={`p-3 rounded-2xl border ${darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"} flex flex-col gap-1`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                        ev.Color === "green" ? "bg-emerald-500/10 text-emerald-400"
-                        : ev.Color === "blue" ? "bg-indigo-500/10 text-indigo-400"
-                        : ev.Color === "purple" ? "bg-purple-500/10 text-purple-400"
-                        : ev.Color === "orange" ? "bg-orange-500/10 text-orange-400"
-                        : "bg-rose-500/10 text-rose-400"
-                      }`}>
-                        {ev.Pilar}
-                      </span>
-                      {ev.Requiere_Pago && <span className="text-[9px] font-bold text-amber-500">-$ {ev.ID_Egreso_Asociado ? "Gasto Linc" : ""}</span>}
-                    </div>
-                    <h4 className={`text-xs font-semibold ${darkMode ? "text-stone-100" : "text-stone-800"}`}>
-                      {ev.Titulo_Actividad}
-                    </h4>
-                    <p className="text-[11px] text-stone-500">{ev.Descripcion_Detallada}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Inline Add Quick Form */}
-          <div className="mt-6 border-t pt-4 border-stone-200 dark:border-stone-850 space-y-4">
-            <h4 className="text-[10px] font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1">
-              <PlusCircle className="w-3.5 h-3.5 text-teal-500" />
-              <span>Añadir a esta fecha</span>
-            </h4>
-
-            {formSuccess && <div className="p-2 text-[10px] rounded-lg bg-teal-500/10 text-teal-400">{formSuccess}</div>}
-            {formError && <div className="p-2 text-[10px] rounded-lg bg-rose-500/10 text-rose-450">{formError}</div>}
-
-            <form onSubmit={handleCreateActivity} className="space-y-3">
+        <form onSubmit={handleCreateActivity} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Actividad Title */}
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Título de Actividad</label>
               <input
                 type="text"
                 required
-                placeholder="Título de la actividad..."
+                placeholder="Ej. Sesión de Mentoría Financiera"
                 value={titulo}
                 onChange={(e) => setTitulo(e.target.value)}
-                className={`w-full text-xs p-2 rounded-xl border focus:outline-none ${
+                className={`w-full text-xs p-3 rounded-2xl border focus:outline-none transition-all ${
                   darkMode ? "bg-stone-950 border-stone-850 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
                 }`}
               />
+            </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={pilar}
-                  onChange={(e) => setPilar(e.target.value as CategoriaPilar)}
-                  className={`w-full text-[11px] p-1.5 rounded-xl border focus:outline-none ${
-                    darkMode ? "bg-stone-950 border-stone-850 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
-                  }`}
-                >
-                  <option value={CategoriaPilar.SALUD}>🩺 Salud</option>
-                  <option value={CategoriaPilar.ESCOLAR}>📚 Escolar</option>
-                  <option value={CategoriaPilar.LABORAL}>💼 Laboral</option>
-                  <option value={CategoriaPilar.PERSONAL}>🍀 Personal</option>
-                  <option value={CategoriaPilar.AMOROSO}>💖 Amoroso</option>
-                </select>
+            {/* Fecha Selector */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Fecha</label>
+              <input
+                type="date"
+                required
+                value={selectedDateStr}
+                onChange={(e) => setSelectedDateStr(e.target.value)}
+                className={`w-full text-xs p-3 rounded-2xl border focus:outline-none transition-all ${
+                  darkMode ? "bg-stone-950 border-stone-850 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                }`}
+              />
+            </div>
 
-                <div className="flex items-center justify-between px-2 py-1 rounded-xl border border-stone-200 dark:border-stone-850">
-                  <span className="text-[9px] uppercase font-bold text-stone-400">¿Implica costo?</span>
-                  <input
-                    type="checkbox"
-                    checked={requierePago}
-                    onChange={(e) => setRequierePago(e.target.checked)}
-                    className="w-3.5 h-3.5 cursor-pointer text-teal-600 rounded focus:ring-teal-500"
-                  />
-                </div>
-              </div>
+            {/* Pilar Selector */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Pilar / Categoría</label>
+              <select
+                value={pilar}
+                onChange={(e) => setPilar(e.target.value as CategoriaPilar)}
+                className={`w-full text-xs p-3 rounded-2xl border focus:outline-none transition-all ${
+                  darkMode ? "bg-stone-950 border-stone-850 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                }`}
+              >
+                <option value={CategoriaPilar.SALUD}>🩺 Salud</option>
+                <option value={CategoriaPilar.ESCOLAR}>📚 Escolar</option>
+                <option value={CategoriaPilar.LABORAL}>💼 Laboral</option>
+                <option value={CategoriaPilar.PERSONAL}>🍀 Personal</option>
+                <option value={CategoriaPilar.AMOROSO}>💖 Amoroso</option>
+              </select>
+            </div>
+          </div>
 
-              {requierePago && (
-                <div className="space-y-2 p-2.5 rounded-xl bg-stone-500/5 animate-fadeIn">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            {/* Cost? Checkbox */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl border border-stone-205 dark:border-stone-850">
+              <span className="text-[10px] uppercase font-bold text-stone-500">¿Implica costo financiero?</span>
+              <input
+                type="checkbox"
+                checked={requierePago}
+                onChange={(e) => setRequierePago(e.target.checked)}
+                className="w-4.5 h-4.5 cursor-pointer text-teal-600 rounded focus:ring-teal-500"
+              />
+            </div>
+
+            {/* If Payment Required, show these fields */}
+            {requierePago && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Tarjeta / Cuenta</label>
                   <select
                     required={requierePago}
                     value={tarjetaId}
                     onChange={(e) => setTarjetaId(e.target.value)}
-                    className={`w-full text-[11px] p-1.5 rounded-lg border focus:outline-none ${
-                      darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-white border-stone-200 text-stone-900"
+                    className={`w-full text-xs p-3 rounded-2xl border focus:outline-none transition-all ${
+                      darkMode ? "bg-stone-950 border-stone-850 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
                     }`}
                   >
                     <option value="">-- Escoger Tarjeta --</option>
@@ -773,46 +704,185 @@ export default function DashboardTab({
                       </option>
                     ))}
                   </select>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="number"
-                      required={requierePago}
-                      placeholder="Costo"
-                      value={gastoMonto}
-                      onChange={(e) => setGastoMonto(e.target.value)}
-                      className={`w-full text-xs p-1.5 rounded-lg border focus:outline-none ${
-                        darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-white border-stone-200 text-stone-900"
-                      }`}
-                    />
-                    <select
-                      value={gastoTipo}
-                      onChange={(e) => setGastoTipo(e.target.value as TipoGasto)}
-                      className={`w-full text-[10px] p-1 rounded-lg border focus:outline-none ${
-                        darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-white border-stone-200 text-stone-900"
-                      }`}
-                    >
-                      <option value={TipoGasto.VARIABLE}>Variable</option>
-                      <option value={TipoGasto.FIJO}>Fijo</option>
-                      <option value={TipoGasto.HORMIGA}>Hormiga</option>
-                    </select>
-                  </div>
                 </div>
-              )}
 
-              <button type="submit" className="w-full py-2 rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-[11px] font-bold cursor-pointer transition-all shadow-md">
-                Registrar Evento
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Monto (USD)</label>
+                  <input
+                    type="number"
+                    required={requierePago}
+                    placeholder="Monto"
+                    value={gastoMonto}
+                    onChange={(e) => setGastoMonto(e.target.value)}
+                    className={`w-full text-xs p-3 rounded-2xl border focus:outline-none transition-all ${
+                      darkMode ? "bg-stone-950 border-stone-850 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                    }`}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Tipo de Gasto</label>
+                  <select
+                    value={gastoTipo}
+                    onChange={(e) => setGastoTipo(e.target.value as TipoGasto)}
+                    className={`w-full text-xs p-3 rounded-2xl border focus:outline-none transition-all ${
+                      darkMode ? "bg-stone-950 border-stone-850 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                    }`}
+                  >
+                    <option value={TipoGasto.VARIABLE}>Variable</option>
+                    <option value={TipoGasto.FIJO}>Fijo</option>
+                    <option value={TipoGasto.HORMIGA}>Hormiga</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {!requierePago && <div className="md:col-span-2 hidden md:block" />}
+
+            {/* Submit Button */}
+            <div className={`${requierePago ? "md:col-span-4" : ""} w-full`}>
+              <button type="submit" className="w-full py-3.5 rounded-2xl bg-teal-500 hover:bg-teal-650 text-white text-xs font-bold cursor-pointer transition-all shadow-md shadow-teal-500/10 flex items-center justify-center gap-1.5">
+                <span>Registrar Actividad en Base de Datos</span>
               </button>
-            </form>
+            </div>
           </div>
-        </div>
+        </form>
       </div>
 
-      {/* 3. Apple-Style Wallet Cuentas/Tarjetas Deck */}
+      {/* 3. Monthly Calendar Grid (Primary View - Expanded to Full Width!) */}
       <div className={`p-6 rounded-[2.5rem] border transition-all ${
         darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
       }`}>
-        <h3 className={`text-xs font-bold uppercase tracking-wider mb-5 flex items-center gap-1.5 ${darkMode ? "text-stone-300" : "text-stone-800"}`}>
+        {/* Calendar Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-teal-500" />
+            <h2 className={`text-sm font-bold uppercase tracking-wider ${darkMode ? "text-white" : "text-stone-900"}`}>
+              Agenda Mensual
+            </h2>
+            {gcalLoading && (
+              <span className="text-[10px] text-stone-500 font-medium animate-pulse">Sincronizando Google Calendar...</span>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button onClick={handlePrevMonth} className={`p-1.5 rounded-xl border hover:bg-stone-500/10 cursor-pointer ${darkMode ? "border-stone-850" : "border-stone-200"}`}>
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className={`text-xs font-bold ${darkMode ? "text-white" : "text-stone-900"}`}>
+              {monthNames[currentMonth]} {currentYear}
+            </span>
+            <button onClick={handleNextMonth} className={`p-1.5 rounded-xl border hover:bg-stone-500/10 cursor-pointer ${darkMode ? "border-stone-850" : "border-stone-200"}`}>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Grid Layout */}
+        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-stone-500 uppercase tracking-widest border-b pb-2 border-stone-200 dark:border-stone-850">
+          {daysOfWeek.map(d => <div key={d}>{d}</div>)}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 mt-2">
+          {calendarDays.map((cDay, idx) => {
+            const hasEvents = cDay.dayNum !== null;
+            const dateEvents = hasEvents 
+              ? allEventsCombined.filter(e => e.Fecha === cDay.dateStr)
+              : [];
+            const isSelected = hasEvents && cDay.dateStr === selectedDateStr;
+
+            return (
+              <div
+                key={idx}
+                onClick={() => {
+                  if (hasEvents) {
+                    setSelectedDateStr(cDay.dateStr);
+                    setShowDayModal(true); // Open activities floating modal
+                  }
+                }}
+                className={`min-h-[110px] p-2.5 border flex flex-col justify-start transition-all cursor-pointer ${
+                  !hasEvents ? "bg-transparent border-transparent cursor-default"
+                  : isSelected 
+                    ? darkMode
+                      ? "bg-stone-900/60 border-teal-500/50"
+                      : "bg-stone-50 border-teal-500/50 shadow-sm"
+                    : darkMode 
+                      ? "bg-[#161616]/40 border-stone-900 text-stone-300 hover:border-stone-800" 
+                      : "bg-white border-stone-150 text-stone-800 hover:bg-stone-50"
+                }`}
+              >
+                {/* Day number with selected circular badge */}
+                <div className="flex items-center justify-between w-full mb-1">
+                  {hasEvents && (
+                    isSelected ? (
+                      <span className="w-5 h-5 rounded-full bg-teal-500 text-white flex items-center justify-center text-[10px] font-bold">
+                        {cDay.dayNum}
+                      </span>
+                    ) : (
+                      <span className={`text-[10px] font-bold ${
+                        cDay.dayNum === 1 ? (darkMode ? "text-stone-400" : "text-stone-600") : (darkMode ? "text-stone-500" : "text-stone-400")
+                      }`}>
+                        {cDay.dayNum === 1 ? `1 de ${monthNames[currentMonth].slice(0, 3).toLowerCase()}` : cDay.dayNum}
+                      </span>
+                    )
+                  )}
+                </div>
+                
+                {/* Event list stacked vertically */}
+                <div className="space-y-1 overflow-hidden w-full flex-grow flex flex-col justify-start">
+                  {dateEvents.slice(0, 3).map((e, index) => {
+                    const dotColorClass = 
+                      e.Color === "green" ? "bg-emerald-500"
+                      : e.Color === "blue" || e.Color === "indigo" ? "bg-sky-400"
+                      : e.Color === "orange" ? "bg-amber-500"
+                      : e.Color === "purple" ? "bg-purple-400"
+                      : "bg-rose-500";
+
+                    // Extract time from Fecha_Hora_Inicio (e.g. "2026-06-08T10:00")
+                    let timeStr = "";
+                    if (e.Fecha_Hora_Inicio && e.Fecha_Hora_Inicio.includes("T")) {
+                      const rawTime = e.Fecha_Hora_Inicio.split("T")[1];
+                      const parts = rawTime.split(":");
+                      if (parts.length >= 2) {
+                        const hour = parseInt(parts[0], 10);
+                        const min = parts[1];
+                        const ampm = hour >= 12 ? "pm" : "am";
+                        const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+                        timeStr = `${displayHour}:${min}${ampm}`;
+                      }
+                    }
+
+                    return (
+                      <div 
+                        key={index} 
+                        title={`${timeStr ? timeStr + " " : ""}${e.Titulo_Actividad || e.Titulo}`}
+                        className="flex items-center gap-1.5 text-[9px] font-medium leading-none truncate w-full text-stone-600 dark:text-stone-300 select-none py-0.5"
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColorClass}`} />
+                        <span className="truncate">
+                          {timeStr && <span className="opacity-75 font-semibold mr-1">{timeStr}</span>}
+                          {e.Titulo_Actividad || e.Titulo}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {dateEvents.length > 3 && (
+                    <div className="text-[8px] font-bold text-stone-500 text-left pl-3 leading-none mt-0.5">
+                      +{dateEvents.length - 3} más
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 4. Wallet Cuentas/Tarjetas Deck */}
+      <div className={`p-6 rounded-[2.5rem] border transition-all ${
+        darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
+      }`}>
+        <h3 className={`text-xs font-bold uppercase tracking-wider mb-5 flex items-center gap-1.5 ${darkMode ? "text-stone-300" : "text-stone-850"}`}>
           <CreditCard className="w-4 h-4 text-indigo-500" />
           <span>Cuentas y Tarjetas</span>
         </h3>
@@ -865,71 +935,250 @@ export default function DashboardTab({
         </div>
       </div>
 
-      {/* 4. Metas de Crecimiento & Rule Warnings */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Gastos y Adquisiciones Periódicos (Apple Card-List) */}
-        <div className={`p-6 rounded-[2.5rem] border transition-all ${
-          darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
-        }`}>
-          <h3 className={`text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-1.5 ${darkMode ? "text-stone-300" : "text-stone-800"}`}>
-            <Clock className="w-4 h-4 text-teal-500 animate-pulse" />
-            <span>Gastos y Adquisiciones Periódicos</span>
-          </h3>
+      {/* 5. Gastos y Adquisiciones Periódicos (Full Width at Bottom - Removed Matrix!) */}
+      <div className={`p-6 rounded-[2.5rem] border transition-all ${
+        darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
+      }`}>
+        <h3 className={`text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-1.5 ${darkMode ? "text-stone-300" : "text-stone-850"}`}>
+          <Clock className="w-4 h-4 text-teal-500 animate-pulse" />
+          <span>Gastos y Adquisiciones Periódicos</span>
+        </h3>
 
-          <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
-            {periodicItems.map((item, idx) => (
-              <div key={idx} className={`p-4 rounded-2xl border ${darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"}`}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                    item.color === "rose" ? "bg-rose-500/10 text-rose-400" : "bg-teal-500/10 text-teal-400"
-                  }`}>
-                    {item.category}
-                  </span>
-                  <span className="text-[10px] font-semibold text-stone-400">{item.period}</span>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className={`text-xs font-bold truncate ${darkMode ? "text-white" : "text-stone-900"}`}>{item.name}</h4>
-                  <span className={`text-xs font-mono font-bold ${item.color === "rose" ? "text-rose-500" : "text-teal-500"}`}>
-                    ${item.amount.toLocaleString()} USD
-                  </span>
-                </div>
-                <p className="text-[11px] text-stone-500 mt-1">{item.detail}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[350px] overflow-y-auto pr-1">
+          {periodicItems.map((item, idx) => (
+            <div key={idx} className={`p-4 rounded-2xl border ${darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"}`}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                  item.color === "rose" ? "bg-rose-500/10 text-rose-400" : "bg-teal-500/10 text-teal-400"
+                }`}>
+                  {item.category}
+                </span>
+                <span className="text-[10px] font-semibold text-stone-400">{item.period}</span>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Rule Checking matrix */}
-        <div className={`p-6 rounded-[2.5rem] border transition-all ${
-          darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
-        } space-y-4`}>
-          <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${darkMode ? "text-stone-300" : "text-stone-800"}`}>
-            <AlertTriangle className="w-4 h-4 text-amber-500 animate-pulse" />
-            <span>Matriz de Reglas Integradas</span>
-          </h3>
-
-          {/* Rule 2 Indicator */}
-          <div className={`p-4 rounded-2xl border ${healthStatus.warning ? "border-rose-900/30 bg-rose-950/5 text-rose-400" : "border-stone-850 bg-stone-950/10"}`}>
-            <h4 className="text-xs font-bold">🩺 Regla de Salud Cruzada</h4>
-            <p className="text-[11px] text-stone-500 mt-0.5 leading-relaxed">
-              Los gastos en Salud restan presupuesto a tus gastos Personales. Presupuesto Personal Inicial: ${healthStatus.remainingPersonal + healthStatus.saludSpent} USD.
-            </p>
-            <div className="mt-3 flex items-center justify-between text-[11px] font-mono">
-              <span>Gastado en Salud: ${healthStatus.saludSpent}</span>
-              <span>Cupo Personal Restante: ${healthStatus.remainingPersonal}</span>
+              <div className="flex items-center justify-between gap-2">
+                <h4 className={`text-xs font-bold truncate ${darkMode ? "text-white" : "text-stone-900"}`}>{item.name}</h4>
+                <span className={`text-xs font-mono font-bold ${item.color === "rose" ? "text-rose-500" : "text-teal-500"}`}>
+                  ${item.amount.toLocaleString()} USD
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-500 mt-1">{item.detail}</p>
             </div>
-          </div>
-
-          {/* Rule 4 Indicator */}
-          <div className="p-4 rounded-2xl border border-stone-850 bg-stone-950/10">
-            <h4 className="text-xs font-bold">💖 Tope Amoroso Hard-Limit</h4>
-            <p className="text-[11px] text-stone-500 mt-0.5 leading-relaxed">
-              Si tu Pago para No Generar Intereses acumulado supera el 30% de tus ingresos, el pilar Amoroso se congela al 5%.
-            </p>
-          </div>
+          ))}
         </div>
       </div>
+
+      {/* 6. FLOATING MODAL OVERLAY (Google Calendar Day Details) */}
+      {showDayModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className={`w-full max-w-lg rounded-[2.5rem] border shadow-2xl p-6 relative transition-all ${
+            darkMode ? "bg-[#18181b] border-stone-800 text-white" : "bg-white border-stone-200 text-stone-900"
+          }`}>
+            
+            {/* Close button */}
+            <button 
+              onClick={() => {
+                setShowDayModal(false);
+                setEditingEventId(null);
+                setEditError("");
+                setEditSuccess("");
+              }}
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-stone-500/10 cursor-pointer text-stone-400 font-semibold"
+            >
+              ✕
+            </button>
+
+            {editingEventId === null ? (
+              // --- VIEW MODE ---
+              <div className="space-y-4">
+                <div className="border-b pb-2 border-stone-250 dark:border-stone-800">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-teal-500">
+                    Actividades para el {selectedDateStr}
+                  </h3>
+                  <p className="text-[10px] text-stone-500 mt-0.5">
+                    Historial de eventos y sincronización Google Calendar.
+                  </p>
+                </div>
+
+                {editSuccess && <div className="p-2.5 text-xs rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">{editSuccess}</div>}
+                {editError && <div className="p-2.5 text-xs rounded-xl bg-rose-500/10 text-rose-450 border border-rose-500/20">{editError}</div>}
+
+                <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                  {selectedDayEvents.length === 0 ? (
+                    <p className="text-xs text-stone-500 text-center py-12">No hay actividades registradas en esta fecha.</p>
+                  ) : (
+                    selectedDayEvents.map((ev) => {
+                      const isGoogleEvent = ev.Pilar === "Google Sync" || ev.ID_Actividad.startsWith("g-");
+                      return (
+                        <div 
+                          key={ev.ID_Actividad} 
+                          className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 ${
+                            darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"
+                          }`}
+                        >
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                                ev.Color === "green" ? "bg-emerald-500/10 text-emerald-400"
+                                : ev.Color === "blue" ? "bg-indigo-500/10 text-indigo-400"
+                                : ev.Color === "purple" ? "bg-purple-500/10 text-purple-400"
+                                : ev.Color === "orange" ? "bg-orange-500/10 text-orange-400"
+                                : "bg-rose-500/10 text-rose-400"
+                              }`}>
+                                {ev.Pilar}
+                              </span>
+                              {ev.Requiere_Pago && (
+                                <span className="text-[10px] font-bold text-amber-500">
+                                  -${ev.Monto || 0} USD
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="text-xs font-bold">{ev.Titulo_Actividad || ev.Titulo}</h4>
+                            {ev.Descripcion_Detallada && (
+                              <p className="text-[11px] text-stone-500 leading-normal">{ev.Descripcion_Detallada}</p>
+                            )}
+                            {ev.Fecha_Hora_Inicio && (
+                              <p className="text-[10px] text-stone-400 font-mono">
+                                🕒 {ev.Fecha_Hora_Inicio.slice(11, 16)} - {(ev.Fecha_Hora_Fin || "").slice(11, 16)}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Action deck */}
+                          {!isGoogleEvent && (
+                            <div className="flex gap-2 justify-end border-t pt-2 border-stone-200 dark:border-stone-850">
+                              <button
+                                onClick={() => {
+                                  setEditingEventId(ev.ID_Actividad);
+                                  setEditTitulo(ev.Titulo_Actividad || ev.Titulo || "");
+                                  setEditPilar(ev.Pilar as CategoriaPilar);
+                                  setEditDesc(ev.Descripcion_Detallada || ev.Descripcion || "");
+                                  setEditHoraInicio(ev.Fecha_Hora_Inicio ? ev.Fecha_Hora_Inicio.slice(11, 16) : "10:00");
+                                  setEditHoraFin(ev.Fecha_Hora_Fin ? ev.Fecha_Hora_Fin.slice(11, 16) : "11:00");
+                                }}
+                                className="py-1 px-3 rounded-lg text-[10px] font-bold border border-teal-500/25 bg-teal-500/5 hover:bg-teal-500 hover:text-white text-teal-400 cursor-pointer transition-all"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEvent(ev.ID_Actividad)}
+                                className="py-1 px-3 rounded-lg text-[10px] font-bold border border-rose-500/25 bg-rose-500/5 hover:bg-rose-500 hover:text-white text-rose-455 cursor-pointer transition-all"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            ) : (
+              // --- EDIT MODE ---
+              <form onSubmit={handleUpdateEvent} className="space-y-4">
+                <div className="border-b pb-2 border-stone-250 dark:border-stone-850">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-teal-500">
+                    Editar Actividad
+                  </h3>
+                  <p className="text-[10px] text-stone-500 mt-0.5">
+                    Modifica los campos del evento seleccionado.
+                  </p>
+                </div>
+
+                {editSuccess && <div className="p-2 text-xs rounded-xl bg-teal-500/10 text-teal-450">{editSuccess}</div>}
+                {editError && <div className="p-2 text-xs rounded-xl bg-rose-500/10 text-rose-455">{editError}</div>}
+
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase text-stone-500">Título</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={editTitulo}
+                      onChange={(e) => setEditTitulo(e.target.value)}
+                      className={`w-full text-xs p-2.5 rounded-xl border focus:outline-none ${
+                        darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase text-stone-500">Pilar</label>
+                    <select
+                      value={editPilar}
+                      onChange={(e) => setEditPilar(e.target.value as CategoriaPilar)}
+                      className={`w-full text-xs p-2.5 rounded-xl border focus:outline-none ${
+                        darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                      }`}
+                    >
+                      <option value={CategoriaPilar.SALUD}>🩺 Salud</option>
+                      <option value={CategoriaPilar.ESCOLAR}>📚 Escolar</option>
+                      <option value={CategoriaPilar.LABORAL}>💼 Laboral</option>
+                      <option value={CategoriaPilar.PERSONAL}>🍀 Personal</option>
+                      <option value={CategoriaPilar.AMOROSO}>💖 Amoroso</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold uppercase text-stone-500">Hora Inicio</label>
+                      <input 
+                        type="time" 
+                        value={editHoraInicio}
+                        onChange={(e) => setEditHoraInicio(e.target.value)}
+                        className={`w-full text-xs p-2 rounded-xl border focus:outline-none ${
+                          darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                        }`}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold uppercase text-stone-500">Hora Fin</label>
+                      <input 
+                        type="time" 
+                        value={editHoraFin}
+                        onChange={(e) => setEditHoraFin(e.target.value)}
+                        className={`w-full text-xs p-2 rounded-xl border focus:outline-none ${
+                          darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase text-stone-500">Descripción</label>
+                    <textarea
+                      rows={2}
+                      value={editDesc}
+                      onChange={(e) => setEditDesc(e.target.value)}
+                      className={`w-full text-xs p-2.5 rounded-xl border focus:outline-none ${
+                        darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 justify-end border-t pt-3 border-stone-200 dark:border-stone-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingEventId(null)}
+                    className={`py-2 px-4 rounded-xl text-xs font-bold border cursor-pointer ${
+                      darkMode ? "bg-stone-900 border-stone-800 hover:bg-stone-800 text-white" : "bg-stone-100 border-stone-200 hover:bg-stone-200 text-stone-700"
+                    }`}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="py-2 px-4 rounded-xl text-xs font-bold bg-teal-500 hover:bg-teal-650 text-white cursor-pointer shadow-md"
+                  >
+                    Guardar Cambios
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

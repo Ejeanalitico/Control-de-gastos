@@ -28,6 +28,10 @@ export default function AuthPortal({
   const [name, setName] = useState<string>("");
   const [oauthLoading, setOauthLoading] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>("");
+  const [googleClientId, setGoogleClientId] = useState<string>(() => {
+    return localStorage.getItem("pilar5_g_client_id") || "";
+  });
+  const [showConfigId, setShowConfigId] = useState<boolean>(false);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,39 +80,27 @@ export default function AuthPortal({
     }
   };
 
-  const handleGoogleOAuthSimulate = async () => {
+  const handleGoogleOAuthSimulate = () => {
+    const clientId = googleClientId.trim();
+    if (!clientId) {
+      setFormError("Por favor, introduce tu Google Client ID en el formulario de abajo para realizar la conexión real con tu calendario.");
+      setShowConfigId(true);
+      return;
+    }
+
+    // Save Client ID for persistence
+    localStorage.setItem("pilar5_g_client_id", clientId);
+
     setOauthLoading(true);
     setFormError("");
-    try {
-      // Background real login using the default user account Salvador Gómez
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "salvador.gomez.dev@gmail.com", password: "password123" })
-      });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Error al conectar con Google OAuth.");
-      }
+    // Build standard implicit flow URL for Google Calendar & UserInfo profile scopes
+    const redirectUri = window.location.origin + "/";
+    const scope = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile email openid";
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=consent`;
 
-      setTimeout(() => {
-        setOauthLoading(false);
-        // Automatically establish Google Calendar sync on Google Login
-        localStorage.setItem(`pilar5_g_connected_${data.user.ID_Usuario}`, "true");
-        localStorage.setItem(`pilar5_g_token_${data.user.ID_Usuario}`, "google-simulated-token-12345");
-        localStorage.setItem(`pilar5_g_user_${data.user.ID_Usuario}`, JSON.stringify({
-          name: data.user.Nombre_Usuario,
-          email: data.user.Correo_Google || "salvador.gomez.dev@gmail.com",
-          picture: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80"
-        }));
-
-        onLoginSuccess(data.user.ID_Usuario, data.user);
-      }, 1000);
-    } catch (err: any) {
-      setOauthLoading(false);
-      setFormError("No se pudo iniciar sesión con Google: " + err.message);
-    }
+    // Redirect user to Google sign-in consent screen
+    window.location.href = authUrl;
   };
 
   return (
@@ -276,8 +268,41 @@ export default function AuthPortal({
               }`}
             >
               <Chrome className="w-4 h-4 text-rose-500" />
-              <span>Entrar con cuenta de Google</span>
+              <span>Entrar con tu cuenta de Google</span>
             </button>
+
+            {/* Config Google Client ID section */}
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setShowConfigId(!showConfigId)}
+                className="text-[10px] text-teal-500 font-semibold hover:underline block text-center w-full cursor-pointer"
+              >
+                {showConfigId ? "ocultar ajustes de Google Client ID" : "configurar Google Client ID para conexión real"}
+              </button>
+
+              {showConfigId && (
+                <div className={`mt-2 p-3.5 rounded-2xl border text-left ${
+                  darkMode ? "bg-stone-950/65 border-stone-850" : "bg-stone-50 border-stone-200"
+                } space-y-2`}>
+                  <label className="text-[9px] font-bold uppercase tracking-wider text-stone-500 block">
+                    Google OAuth Client ID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Pega aquí tu .apps.googleusercontent.com Client ID"
+                    value={googleClientId}
+                    onChange={(e) => setGoogleClientId(e.target.value)}
+                    className={`w-full text-[11px] px-3 py-2 rounded-xl border focus:outline-none ${
+                      darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-white border-stone-250 text-stone-900"
+                    }`}
+                  />
+                  <p className="text-[9px] text-stone-500 leading-normal">
+                    💡 <b>Instrucciones:</b> Ve a Google Cloud Console, crea un cliente OAuth Web con la URI de redirección autorizada: <code>{window.location.origin}/</code> y pega el Client ID aquí.
+                  </p>
+                </div>
+              )}
+            </div>
           </form>
         )}
 

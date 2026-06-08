@@ -94,7 +94,28 @@ export default function WorkspaceSyncTab({
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // Persist states
+  const [googleClientId, setGoogleClientId] = useState<string>(() => {
+    return localStorage.getItem("pilar5_g_client_id") || "";
+  });
+  const [showConfigId, setShowConfigId] = useState<boolean>(false);
+
+  const handleGoogleOAuthDirect = () => {
+    const clientId = googleClientId.trim();
+    if (!clientId) {
+      alert("Por favor, introduce tu Google Client ID en el panel de configuración.");
+      setShowConfigId(true);
+      return;
+    }
+    localStorage.setItem("pilar5_g_client_id", clientId);
+
+    const redirectUri = window.location.origin + "/";
+    const scope = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile email openid";
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=consent`;
+
+    window.location.href = authUrl;
+  };
+
+  // Connect Google simulating/with real tokens
   useEffect(() => {
     if (accessToken) {
       localStorage.setItem(`pilar5_g_token_${activeUser.ID_Usuario}`, accessToken);
@@ -694,14 +715,25 @@ SaaS Ecosistema 5 Pilares - Automatización Inteligente con Google Workspace & G
                 Desconectar Cuenta Google
               </button>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 items-center">
+                {/* Real Google OAuth Connection */}
                 <button
-                  onClick={handleConnectSimulated}
+                  onClick={handleGoogleOAuthDirect}
                   className="py-1.5 px-3.5 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold tracking-wide transition-all cursor-pointer shadow-md shadow-teal-500/15 flex items-center gap-1.5"
                 >
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin-slow" />
-                  Conexión Rápida
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Conectar Google (OAuth Real)</span>
                 </button>
+
+                {/* Dummy Simulator */}
+                <button
+                  onClick={handleConnectSimulated}
+                  className="py-1.5 px-3.5 rounded-xl border border-stone-300 dark:border-stone-850 hover:bg-stone-100 dark:hover:bg-stone-900 text-stone-600 dark:text-stone-300 text-xs font-semibold tracking-wide transition-all cursor-pointer"
+                >
+                  Simulación Rápida (Dummy)
+                </button>
+
+                {/* Token / Dev Mode */}
                 <button
                   onClick={() => setShowTokenForm(!showTokenForm)}
                   className={`py-1.5 px-3.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
@@ -716,6 +748,41 @@ SaaS Ecosistema 5 Pilares - Automatización Inteligente con Google Workspace & G
             )}
           </div>
         </div>
+
+        {/* Client ID settings panel when not connected */}
+        {!isConnected && (
+          <div className="mt-4 border-t pt-4 border-stone-200 dark:border-stone-900">
+            <button
+              type="button"
+              onClick={() => setShowConfigId(!showConfigId)}
+              className="text-[10px] text-teal-500 font-semibold hover:underline block text-left cursor-pointer"
+            >
+              {showConfigId ? "Ocultar ajustes de Google Client ID" : "⚙️ Configurar Google Client ID para conexión real"}
+            </button>
+
+            {showConfigId && (
+              <div className={`mt-3 p-4 rounded-2xl border text-left max-w-xl ${
+                darkMode ? "bg-stone-950/65 border-stone-850" : "bg-stone-50 border-stone-200"
+              } space-y-2`}>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-stone-500 block">
+                  Google OAuth Client ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="Pega aquí tu .apps.googleusercontent.com Client ID"
+                  value={googleClientId}
+                  onChange={(e) => setGoogleClientId(e.target.value)}
+                  className={`w-full text-[11px] px-3 py-2 rounded-xl border focus:outline-none ${
+                    darkMode ? "bg-stone-900 border-stone-850 text-white" : "bg-white border-stone-250 text-stone-900"
+                  }`}
+                />
+                <p className="text-[9px] text-stone-500 leading-normal">
+                  💡 <b>Instrucciones:</b> Ve a Google Cloud Console, crea un cliente OAuth Web con la URI de redirección autorizada: <code>{window.location.origin}/</code> y pega el Client ID aquí. Al hacer clic en "Conectar Google (OAuth Real)", se te redirigirá a tu cuenta real.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Feedback Messages */}
         {syncStatus && (

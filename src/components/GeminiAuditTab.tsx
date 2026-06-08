@@ -199,57 +199,25 @@ export default function GeminiAuditTab({
       </div>
 
       {activeSubTab === "audit" ? (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Quick rules checker */}
-          <div className="lg:col-span-1 space-y-4">
-            <div className={`p-4 rounded-xl border ${
-              darkMode ? "bg-stone-900/40 border-stone-800" : "bg-stone-50 border-stone-200"
-            }`}>
-              <h4 className="text-xs font-bold leading-tight uppercase tracking-wider text-teal-600 mb-3 flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Matriz de Reglas
+        <div className="space-y-6">
+          {/* Top Panel for Audit Action */}
+          <div className={`p-6 rounded-[2rem] border transition-all ${
+            darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
+          } flex flex-col md:flex-row md:items-center justify-between gap-4`}>
+            <div className="max-w-xl text-left">
+              <h4 className={`text-sm font-sans font-bold leading-tight ${darkMode ? "text-white" : "text-stone-900"}`}>
+                Auditoría Semanal de 5 Pilares con Gemini AI
               </h4>
-              <p className="text-[11px] text-stone-500 leading-relaxed mb-4">
-                El sistema de Reconstrucción evalúa tus egresos en tiempo real antes de enviar a la IA.
+              <p className="text-xs text-stone-500 mt-1 leading-normal">
+                Analiza de forma proactiva la liquidez mensual, plazos de tarjetas y el impacto cruzado entre tus pilares de crecimiento (Salud, Escolar, Laboral, Personal, Amoroso).
               </p>
-
-              <div className="space-y-3.5">
-                <div>
-                  <h5 className={`text-[11px] font-bold ${darkMode ? "text-white" : "text-stone-800"}`}>
-                    Pilar Salud ➡️ Personal
-                  </h5>
-                  <p className="text-[10px] text-stone-500 mt-0.5 leading-relaxed">
-                    Todo gasto registrado en la categoría de Salud reduce un monto equivalente disponible en tu pilar Personal mensual.
-                  </p>
-                </div>
-                <div>
-                  <h5 className={`text-[11px] font-bold ${darkMode ? "text-white" : "text-stone-800"}`}>
-                    Escolar/Laboral Overflow
-                  </h5>
-                  <p className="text-[10px] text-stone-500 mt-0.5 leading-relaxed">
-                    Gastos en educación/trabajo son inversiones prioritarias. Si rebasan sus presupuestos, la IA propone cortes automáticos en los pilares variables.
-                  </p>
-                </div>
-                <div>
-                  <h5 className={`text-[11px] font-bold ${darkMode ? "text-white" : "text-stone-800"}`}>
-                    Tope Amoroso Hard-Limit
-                  </h5>
-                  <p className="text-[10px] text-stone-500 mt-0.5 leading-relaxed">
-                    Si tu Pago para No Generar Intereses acumulado supera el 30% de tus ingresos netos, el presupuesto Amoroso se congela automáticamente en un máximo de 5% del neto.
-                  </p>
-                </div>
-              </div>
             </div>
-
-            {/* Run Button Container */}
-            <div className={`p-4 rounded-xl border ${
-              darkMode ? "bg-stone-900/90 border-stone-800" : "bg-white border-stone-200"
-            }`}>
+            <div>
               <button
                 id="run-gemini-audit-btn"
                 disabled={loading}
                 onClick={testAudit}
-                className="cursor-pointer w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-50 transition-all duration-200"
+                className="cursor-pointer inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-xs font-bold bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-50 transition-all duration-200 shadow-md shadow-teal-500/15"
               >
                 {loading ? (
                   <>
@@ -263,14 +231,11 @@ export default function GeminiAuditTab({
                   </>
                 )}
               </button>
-              <p className="text-[10px] text-stone-500 text-center mt-2 leading-tight">
-                Instancia actual a auditar: <strong>Gemini 3.5 Flash</strong>
-              </p>
             </div>
           </div>
 
-          {/* Audit Results */}
-          <div className="lg:col-span-3">
+          {/* Audit Results (Full Width) */}
+          <div className="w-full text-left">
             {auditResult ? (
               <div className={`p-6 rounded-2xl border ${
                 darkMode ? "bg-stone-900/60 border-stone-800" : "bg-white border-stone-200"

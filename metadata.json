@@ -1,0 +1,6 @@
+{
+  "name": "Ecosistema de Crecimiento de 5 Pilares",
+  "description": "Sistema de reconstrucción personal y finanzas simplificado basado en el Ecosistema de Crecimiento de 5 Pilares integrado con Sheets, Calendar, Gmail y Gemini AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

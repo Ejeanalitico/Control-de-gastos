@@ -21,11 +21,8 @@ import {
   ArrowUpRight, 
   ArrowDownRight, 
   CreditCard, 
-  Award,
-  AlertCircle,
-  RotateCcw,
   Sliders,
-  CheckCircle2,
+  RotateCcw,
   FileSpreadsheet
 } from "lucide-react";
 
@@ -58,7 +55,7 @@ export default function SheetsSimulatorTab({
   setEventos,
   resetToInitial
 }: SheetsSimulatorTabProps) {
-  const [activeSheet, setActiveSheet] = useState<"A" | "B" | "C" | "D" | "E">("B");
+  const [activeSheet, setActiveSheet] = useState<"B" | "C" | "D" | "E">("B");
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Form States
@@ -106,14 +103,15 @@ export default function SheetsSimulatorTab({
     return prefix + "-" + Math.random().toString(36).substring(2, 9);
   };
 
-  // --- CRUD ACTIONS ---
-  const handleAddIngreso = (e: React.FormEvent) => {
+  // --- CRUD API ACTIONS (PERSIST TO SQLITE IN BACKGROUND) ---
+  
+  const handleAddIngreso = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ingresoForm.Concepto || !ingresoForm.Monto_Neto) return;
     const valNet = parseFloat(ingresoForm.Monto_Neto);
 
     const newRecord: Ingreso = {
-      ID_Usuario: "",
+      ID_Usuario: deudas[0]?.ID_Usuario || "",
       ID_Ingreso: generateUuid("ing"),
       Fecha: ingresoForm.Fecha,
       Concepto: ingresoForm.Concepto,
@@ -123,28 +121,40 @@ export default function SheetsSimulatorTab({
       Cuenta_Destino: "SaaS Cuentas Bancarias"
     };
 
-    setIngresos((prev) => [newRecord, ...prev]);
-    setIngresoForm({
-      Fecha: "2026-06-12",
-      Concepto: "",
-      Categoria: CategoriaIngreso.NOMINA,
-      Monto_Neto: ""
-    });
-    setShowAddForm(false);
+    try {
+      const res = await fetch("/api/ingresos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newRecord)
+      });
+      if (res.ok) {
+        setIngresos((prev) => [newRecord, ...prev]);
+        setIngresoForm({
+          Fecha: "2026-06-12",
+          Concepto: "",
+          Categoria: CategoriaIngreso.NOMINA,
+          Monto_Neto: ""
+        });
+        setShowAddForm(false);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const handleAddDeuda = (e: React.FormEvent) => {
+  const handleAddDeuda = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deudaForm.Nombre_Tarjeta) return;
 
     const parseLim = parseFloat(deudaForm.Limite_Credito) || 0;
     const parseDisp = parseFloat(deudaForm.Saldo_Disponible) || 0;
     const parseDeuda = parseFloat(deudaForm.Deuda_Actual) || 0;
+    const cardId = generateUuid("card");
 
     const newRecord: Deuda = {
-      ID_Usuario: "",
-      ID_Instrumento: generateUuid("card"),
-      ID_Tarjeta: generateUuid("card"),
+      ID_Usuario: deudas[0]?.ID_Usuario || "",
+      ID_Instrumento: cardId,
+      ID_Tarjeta: cardId,
       Nombre_Tarjeta: deudaForm.Nombre_Tarjeta,
       Nombre_Instrumento: deudaForm.Nombre_Tarjeta,
       Tipo: deudaForm.Tipo,
@@ -161,28 +171,39 @@ export default function SheetsSimulatorTab({
       Pago_Minimo_Mensual: parseFloat(deudaForm.Pago_Minimo) || 0
     };
 
-    setDeudas((prev) => [newRecord, ...prev]);
-    setDeudaForm({
-      Nombre_Tarjeta: "",
-      Tipo: TipoTarjeta.CREDITO,
-      Limite_Credito: "",
-      Saldo_Disponible: "",
-      Deuda_Actual: "",
-      Pago_Minimo: "",
-      Pago_Para_No_Generar_Intereses: "",
-      Fecha_Corte: "15",
-      Fecha_Limite_Pago: "5",
-      Tasa_Interes_Anual: "45"
-    });
-    setShowAddForm(false);
+    try {
+      const res = await fetch("/api/deudas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newRecord)
+      });
+      if (res.ok) {
+        setDeudas((prev) => [newRecord, ...prev]);
+        setDeudaForm({
+          Nombre_Tarjeta: "",
+          Tipo: TipoTarjeta.CREDITO,
+          Limite_Credito: "",
+          Saldo_Disponible: "",
+          Deuda_Actual: "",
+          Pago_Minimo: "",
+          Pago_Para_No_Generar_Intereses: "",
+          Fecha_Corte: "15",
+          Fecha_Limite_Pago: "5",
+          Tasa_Interes_Anual: "45"
+        });
+        setShowAddForm(false);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const handleAddEgreso = (e: React.FormEvent) => {
+  const handleAddEgreso = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!egresoForm.Concepto || !egresoForm.Monto) return;
 
     const newRecord: Egreso = {
-      ID_Usuario: "",
+      ID_Usuario: deudas[0]?.ID_Usuario || "",
       ID_Egreso: generateUuid("egr"),
       ID_Actividad_Origen: null,
       ID_Tarjeta_Utilizada: "card-direct-sheets-entry",
@@ -195,26 +216,37 @@ export default function SheetsSimulatorTab({
       Tipo_Gasto: egresoForm.Tipo_Gasto
     };
 
-    setEgresos((prev) => [newRecord, ...prev]);
-    setEgresoForm({
-      Fecha: "2026-06-12",
-      Concepto: "",
-      Categoria_Pilar: CategoriaPilar.PERSONAL,
-      Subcategoria: "",
-      Monto: "",
-      Metodo_Pago: "",
-      Tipo_Gasto: TipoGasto.VARIABLE
-    });
-    setShowAddForm(false);
+    try {
+      const res = await fetch("/api/egresos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newRecord)
+      });
+      if (res.ok) {
+        setEgresos((prev) => [newRecord, ...prev]);
+        setEgresoForm({
+          Fecha: "2026-06-12",
+          Concepto: "",
+          Categoria_Pilar: CategoriaPilar.PERSONAL,
+          Subcategoria: "",
+          Monto: "",
+          Metodo_Pago: "",
+          Tipo_Gasto: TipoGasto.VARIABLE
+        });
+        setShowAddForm(false);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const handleAddEvento = (e: React.FormEvent) => {
+  const handleAddEvento = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!eventoForm.Titulo_Actividad) return;
 
     const uuidAct = generateUuid("act");
     const newRecord: AgendaEvento = {
-      ID_Usuario: "",
+      ID_Usuario: deudas[0]?.ID_Usuario || "",
       ID_Evento: uuidAct,
       ID_Actividad: uuidAct,
       Tipo_Agenda: eventoForm.Tipo_Agenda,
@@ -234,109 +266,137 @@ export default function SheetsSimulatorTab({
       Alerta_Descalce: false
     };
 
-    setEventos((prev) => [newRecord, ...prev]);
-    setEventoForm({
-      Titulo_Actividad: "",
-      Tipo_Agenda: "Agenda_Personal" as any,
-      Pilar: CategoriaPilar.PERSONAL,
-      Descripcion_Detallada: "",
-      Fecha_Hora_Inicio: "2026-06-12T10:00",
-      Fecha_Hora_Fin: "2026-06-12T11:00",
-      Requiere_Pago: false
-    });
-    setShowAddForm(false);
+    try {
+      const res = await fetch("/api/eventos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newRecord)
+      });
+      if (res.ok) {
+        setEventos((prev) => [newRecord, ...prev]);
+        setEventoForm({
+          Titulo_Actividad: "",
+          Tipo_Agenda: "Agenda_Personal" as any,
+          Pilar: CategoriaPilar.PERSONAL,
+          Descripcion_Detallada: "",
+          Fecha_Hora_Inicio: "2026-06-12T10:00",
+          Fecha_Hora_Fin: "2026-06-12T11:00",
+          Requiere_Pago: false
+        });
+        setShowAddForm(false);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteItem = async (type: "ingresos" | "egresos" | "deudas" | "eventos", id: string) => {
+    try {
+      const res = await fetch(`/api/${type}/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        if (type === "ingresos") setIngresos(prev => prev.filter(i => i.ID_Ingreso !== id));
+        if (type === "egresos") setEgresos(prev => prev.filter(e => e.ID_Egreso !== id));
+        if (type === "deudas") setDeudas(prev => prev.filter(d => d.ID_Instrumento !== id));
+        if (type === "eventos") setEventos(prev => prev.filter(ev => ev.ID_Actividad !== id));
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn font-sans">
       
-      {/* Visual Top Bar Banner */}
-      <div className={`p-4 rounded-3xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        darkMode ? "bg-stone-900 border-stone-850" : "bg-white border-stone-200"
+      {/* Top Banner (Apple Style Card) */}
+      <div className={`p-6 rounded-[2rem] border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${
+        darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
       }`}>
-        <div className="flex items-center gap-2.5">
-          <FileSpreadsheet className="w-5 h-5 text-emerald-500" />
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl">
+            <FileSpreadsheet className="w-5 h-5" />
+          </div>
           <div>
-            <h3 className={`text-xs font-bold uppercase tracking-wider ${darkMode ? "text-white" : "text-stone-900"}`}>
-              Esquemas de Base de Datos Google Sheets (Data Lake)
+            <h3 className={`text-sm font-semibold tracking-tight uppercase ${darkMode ? "text-stone-200" : "text-stone-900"}`}>
+              Gestión e Integración de Datos
             </h3>
             <p className="text-[10px] text-stone-500 font-medium">
-              Alineación relacional con el aislamiento lógico de inquilino. Cada registro está indexado por ID_Usuario.
+              Consulta de datos sincronizada en tiempo real con la base de datos persistente.
             </p>
           </div>
         </div>
 
         <button
           onClick={resetToInitial}
-          className="py-1.5 px-3 rounded-xl border border-rose-500/20 text-rose-500 bg-rose-500/5 text-[10px] uppercase font-bold tracking-wider hover:bg-rose-500 hover:text-white transition-all cursor-pointer flex items-center gap-1"
+          className="py-2 px-4 rounded-xl border border-rose-500/20 text-rose-500 bg-rose-500/5 text-[10px] uppercase font-bold tracking-wider hover:bg-rose-500 hover:text-white transition-all cursor-pointer flex items-center gap-1"
         >
-          <RotateCcw className="w-3 h-3" />
-          <span>Restablecer Data Inicial</span>
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>Restablecer Datos</span>
         </button>
       </div>
 
-      {/* Tabs list sheets */}
+      {/* Tabs list (clean labels) */}
       <div className="flex flex-wrap gap-2">
         <button
           id="sheet-tab-b"
           onClick={() => { setActiveSheet("B"); setShowAddForm(false); }}
-          className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+          className={`px-4 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
             activeSheet === "B" 
-              ? "bg-stone-900 dark:bg-stone-200 text-white dark:text-stone-900 border-transparent font-extrabold" 
-              : darkMode ? "bg-stone-950/60 border-stone-850 text-stone-400 hover:bg-stone-900" : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
+              ? "bg-teal-500/10 border-teal-500/30 text-teal-500 font-bold" 
+              : darkMode ? "bg-stone-900/20 border-stone-900 text-stone-400 hover:text-stone-300" : "bg-white border-stone-150 text-stone-600 hover:bg-stone-50"
           }`}
         >
           <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" />
-          <span>Tabla B: Ingresos ({ingresos.length})</span>
+          <span>Ingresos ({ingresos.length})</span>
         </button>
 
         <button
           id="sheet-tab-c"
           onClick={() => { setActiveSheet("C"); setShowAddForm(false); }}
-          className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+          className={`px-4 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
             activeSheet === "C" 
-              ? "bg-stone-900 dark:bg-stone-200 text-white dark:text-stone-900 border-transparent font-extrabold" 
-              : darkMode ? "bg-stone-950/60 border-stone-850 text-stone-400 hover:bg-stone-900" : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
+              ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-500 font-bold" 
+              : darkMode ? "bg-stone-900/20 border-stone-900 text-stone-400 hover:text-stone-300" : "bg-white border-stone-150 text-stone-600 hover:bg-stone-50"
           }`}
         >
-          <CreditCard className="w-3.5 h-3.5 text-rose-500" />
-          <span>Tabla C: Monedero e Instrumentos ({deudas.length})</span>
+          <CreditCard className="w-3.5 h-3.5 text-indigo-500" />
+          <span>Cuentas y Tarjetas ({deudas.length})</span>
         </button>
 
         <button
           id="sheet-tab-d"
           onClick={() => { setActiveSheet("D"); setShowAddForm(false); }}
-          className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+          className={`px-4 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
             activeSheet === "D" 
-              ? "bg-stone-900 dark:bg-stone-200 text-white dark:text-stone-900 border-transparent font-extrabold" 
-              : darkMode ? "bg-stone-950/60 border-stone-850 text-stone-400 hover:bg-stone-900" : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
+              ? "bg-rose-500/10 border-rose-500/30 text-rose-500 font-bold" 
+              : darkMode ? "bg-stone-900/20 border-stone-900 text-stone-400 hover:text-stone-300" : "bg-white border-stone-150 text-stone-600 hover:bg-stone-50"
           }`}
         >
-          <ArrowDownRight className="w-3.5 h-3.5 text-indigo-400" />
-          <span>Tabla D: Egresos ({egresos.length})</span>
+          <ArrowDownRight className="w-3.5 h-3.5 text-rose-500" />
+          <span>Gastos ({egresos.length})</span>
         </button>
 
         <button
           id="sheet-tab-e"
           onClick={() => { setActiveSheet("E"); setShowAddForm(false); }}
-          className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+          className={`px-4 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
             activeSheet === "E" 
-              ? "bg-stone-900 dark:bg-stone-200 text-white dark:text-stone-900 border-transparent font-extrabold" 
-              : darkMode ? "bg-stone-950/60 border-stone-850 text-stone-400 hover:bg-stone-900" : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
+              ? "bg-amber-500/10 border-amber-500/30 text-amber-500 font-bold" 
+              : darkMode ? "bg-stone-900/20 border-stone-900 text-stone-400 hover:text-stone-300" : "bg-white border-stone-150 text-stone-600 hover:bg-stone-50"
           }`}
         >
-          <Calendar className="w-3.5 h-3.5 text-purple-400" />
-          <span>Tabla E: Actividades y Agenda ({eventos.length})</span>
+          <Calendar className="w-3.5 h-3.5 text-amber-500" />
+          <span>Actividades ({eventos.length})</span>
         </button>
       </div>
 
-      {/* Sheet Frame Content rendering */}
-      <div className={`p-6 rounded-3xl border overflow-x-auto min-h-[300px] ${
-        darkMode ? "bg-stone-900/60 border-stone-900/80" : "bg-white border-stone-200"
+      {/* Grid container redesigned into card-list (No Excel spreadsheet look) */}
+      <div className={`p-6 rounded-[2rem] border transition-all ${
+        darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
       }`}>
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-[10px] font-mono text-stone-500 uppercase tracking-widest font-bold">
-            Mostrando partición lógica activa de Google Sheets (Vista de Celdas)
+        
+        <div className="flex items-center justify-between mb-6 border-b pb-3 border-stone-200 dark:border-stone-850">
+          <span className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">
+            Listado Sincronizado
           </span>
 
           <button
@@ -347,107 +407,75 @@ export default function SheetsSimulatorTab({
                 : "bg-teal-500 text-white border-transparent"
             }`}
           >
-            <Plus className="w-3 h-3" />
-            <span>{showAddForm ? "Cerrar Panel" : "Añadir Fila manual"}</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>{showAddForm ? "Cerrar Panel" : "Registrar Manualmente"}</span>
           </button>
         </div>
 
-        {/* Form Add row dynamically */}
+        {/* Dynamic add form drawer */}
         {showAddForm && (
-          <div className={`p-4 rounded-2xl border mb-6 ${
-            darkMode ? "bg-stone-950 border-stone-850" : "bg-stone-50 border-stone-200"
+          <div className={`p-5 rounded-2xl border mb-6 ${
+            darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"
           }`}>
-            <h4 className="text-[10px] uppercase font-bold tracking-wider text-teal-400 mb-3">Ingresar nueva fila a la tabla activa de Sheets</h4>
+            <h4 className="text-[10px] uppercase font-bold tracking-wider text-stone-400 mb-4">Ingresar nuevo registro</h4>
             
             {activeSheet === "B" && (
               <form onSubmit={handleAddIngreso} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Fecha</label>
-                  <input type="date" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={ingresoForm.Fecha} onChange={(e)=>setIngresoForm({...ingresoForm, Fecha: e.target.value})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Fecha</label>
+                  <input type="date" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={ingresoForm.Fecha} onChange={(e)=>setIngresoForm({...ingresoForm, Fecha: e.target.value})} />
                 </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Concepto</label>
-                  <input type="text" placeholder="ej. Honorarios Extras" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={ingresoForm.Concepto} onChange={(e)=>setIngresoForm({...ingresoForm, Concepto: e.target.value})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Concepto</label>
+                  <input type="text" placeholder="ej. Asesoría Frontend" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={ingresoForm.Concepto} onChange={(e)=>setIngresoForm({...ingresoForm, Concepto: e.target.value})} />
                 </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Monto Neto</label>
-                  <input type="number" placeholder="0.00" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={ingresoForm.Monto_Neto} onChange={(e)=>setIngresoForm({...ingresoForm, Monto_Neto: e.target.value})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Monto Neto</label>
+                  <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={ingresoForm.Monto_Neto} onChange={(e)=>setIngresoForm({...ingresoForm, Monto_Neto: e.target.value})} />
                 </div>
-                <button type="submit" className="py-2.5 px-4 font-bold rounded-lg bg-teal-500 text-white text-xs cursor-pointer">Insertar Fila</button>
+                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs cursor-pointer transition-all">Guardar Registro</button>
               </form>
             )}
 
             {activeSheet === "C" && (
               <form onSubmit={handleAddDeuda} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Nombre de la Tarjeta</label>
-                  <input type="text" placeholder="ej. TDC Oro Visa" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={deudaForm.Nombre_Tarjeta} onChange={(e)=>setDeudaForm({...deudaForm, Nombre_Tarjeta: e.target.value})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Nombre de la Cuenta</label>
+                  <input type="text" placeholder="ej. Tarjeta Citi" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={deudaForm.Nombre_Tarjeta} onChange={(e)=>setDeudaForm({...deudaForm, Nombre_Tarjeta: e.target.value})} />
                 </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Tipo de Cuenta</label>
-                  <select className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={deudaForm.Tipo} onChange={(e)=>setDeudaForm({...deudaForm, Tipo: e.target.value as any})}>
-                    <option value={TipoTarjeta.CREDITO}>Crédito (TDC)</option>
-                    <option value={TipoTarjeta.DEBITO}>Débito (Checking/Ahorros)</option>
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Tipo de Cuenta</label>
+                  <select className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={deudaForm.Tipo} onChange={(e)=>setDeudaForm({...deudaForm, Tipo: e.target.value as any})}>
+                    <option value={TipoTarjeta.CREDITO}>Crédito</option>
+                    <option value={TipoTarjeta.DEBITO}>Débito</option>
                   </select>
                 </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Línea de Crédito / Caja</label>
-                  <input type="number" placeholder="Monto" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={deudaForm.Limite_Credito} onChange={(e)=>setDeudaForm({...deudaForm, Limite_Credito: e.target.value})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Línea de Crédito</label>
+                  <input type="number" placeholder="Línea de Crédito" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={deudaForm.Limite_Credito} onChange={(e)=>setDeudaForm({...deudaForm, Limite_Credito: e.target.value})} />
                 </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Saldo Disponible</label>
-                  <input type="number" placeholder="Saldo" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={deudaForm.Saldo_Disponible} onChange={(e)=>setDeudaForm({...deudaForm, Saldo_Disponible: e.target.value})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Saldo Disponible</label>
+                  <input type="number" placeholder="Saldo Disponible" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={deudaForm.Saldo_Disponible} onChange={(e)=>setDeudaForm({...deudaForm, Saldo_Disponible: e.target.value})} />
                 </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Fecha Corte (Día)</label>
-                  <input type="number" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={deudaForm.Fecha_Corte} onChange={(e)=>setDeudaForm({...deudaForm, Fecha_Corte: e.target.value})} />
-                </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Fecha Límite Pago (Día)</label>
-                  <input type="number" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={deudaForm.Fecha_Limite_Pago} onChange={(e)=>setDeudaForm({...deudaForm, Fecha_Limite_Pago: e.target.value})} />
-                </div>
-                <button type="submit" className="py-2.5 px-4 font-bold rounded-lg bg-teal-500 text-white text-xs cursor-pointer md:col-span-2">Insertar Tarjeta</button>
+                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-xs cursor-pointer md:col-span-4 transition-all">Registrar Cuenta</button>
               </form>
             )}
 
             {activeSheet === "D" && (
               <form onSubmit={handleAddEgreso} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Fecha</label>
-                  <input type="date" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={egresoForm.Fecha} onChange={(e)=>setEgresoForm({...egresoForm, Fecha: e.target.value})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Fecha</label>
+                  <input type="date" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={egresoForm.Fecha} onChange={(e)=>setEgresoForm({...egresoForm, Fecha: e.target.value})} />
                 </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Concepto</label>
-                  <input type="text" placeholder="Concepto del Egreso" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={egresoForm.Concepto} onChange={(e)=>setEgresoForm({...egresoForm, Concepto: e.target.value})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Concepto</label>
+                  <input type="text" placeholder="Concepto del Gasto" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={egresoForm.Concepto} onChange={(e)=>setEgresoForm({...egresoForm, Concepto: e.target.value})} />
                 </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Pilar Categoria</label>
-                  <select className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={egresoForm.Categoria_Pilar} onChange={(e)=>setEgresoForm({...egresoForm, Categoria_Pilar: e.target.value as any})}>
-                    <option value={CategoriaPilar.NECESIDAD_ESENCIAL}>Necesidades básicas</option>
-                    <option value={CategoriaPilar.SALUD}>Salud / Medicina</option>
-                    <option value={CategoriaPilar.ESCOLAR}>Escolar / Tesis</option>
-                    <option value={CategoriaPilar.LABORAL}>Laboral / Empleos</option>
-                    <option value={CategoriaPilar.PERSONAL}>Personal / Esparcimiento</option>
-                    <option value={CategoriaPilar.AMOROSO}>Amoroso / Social</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Monto</label>
-                  <input type="number" placeholder="0.00" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={egresoForm.Monto} onChange={(e)=>setEgresoForm({...egresoForm, Monto: e.target.value})} />
-                </div>
-                <button type="submit" className="py-2.5 px-4 font-bold rounded-lg bg-teal-500 text-white text-xs cursor-pointer md:col-span-4">Insertar Egreso</button>
-              </form>
-            )}
-
-            {activeSheet === "E" && (
-              <form onSubmit={handleAddEvento} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Título de la actividad</label>
-                  <input type="text" placeholder="ej. Gimnasio o Cita" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={eventoForm.Titulo_Actividad} onChange={(e)=>setEventoForm({...eventoForm, Titulo_Actividad: e.target.value})} />
-                </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Pilar Fijo</label>
-                  <select className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={eventoForm.Pilar} onChange={(e)=>setEventoForm({...eventoForm, Pilar: e.target.value as any})}>
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Pilar Categoria</label>
+                  <select className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={egresoForm.Categoria_Pilar} onChange={(e)=>setEgresoForm({...egresoForm, Categoria_Pilar: e.target.value as any})}>
+                    <option value={CategoriaPilar.NECESIDAD_ESENCIAL}>Necesidades esenciales</option>
                     <option value={CategoriaPilar.SALUD}>Salud</option>
                     <option value={CategoriaPilar.ESCOLAR}>Escolar</option>
                     <option value={CategoriaPilar.LABORAL}>Laboral</option>
@@ -455,167 +483,152 @@ export default function SheetsSimulatorTab({
                     <option value={CategoriaPilar.AMOROSO}>Amoroso</option>
                   </select>
                 </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-stone-400">Inicio (Fecha Hora)</label>
-                  <input type="text" className="w-full text-xs p-2 rounded-lg border focus:outline-none dark:bg-stone-900" value={eventoForm.Fecha_Hora_Inicio} onChange={(e)=>setEventoForm({...eventoForm, Fecha_Hora_Inicio: e.target.value})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Monto</label>
+                  <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={egresoForm.Monto} onChange={(e)=>setEgresoForm({...egresoForm, Monto: e.target.value})} />
                 </div>
-                <button type="submit" className="py-2.5 px-4 font-bold rounded-lg bg-teal-500 text-white text-xs cursor-pointer">Insertar Actividad</button>
+                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs cursor-pointer md:col-span-4 transition-all">Insertar Gasto</button>
+              </form>
+            )}
+
+            {activeSheet === "E" && (
+              <form onSubmit={handleAddEvento} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Nombre de la actividad</label>
+                  <input type="text" placeholder="ej. Gimnasio" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={eventoForm.Titulo_Actividad} onChange={(e)=>setEventoForm({...eventoForm, Titulo_Actividad: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Pilar Asociado</label>
+                  <select className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={eventoForm.Pilar} onChange={(e)=>setEventoForm({...eventoForm, Pilar: e.target.value as any})}>
+                    <option value={CategoriaPilar.SALUD}>Salud</option>
+                    <option value={CategoriaPilar.ESCOLAR}>Escolar</option>
+                    <option value={CategoriaPilar.LABORAL}>Laboral</option>
+                    <option value={CategoriaPilar.PERSONAL}>Personal</option>
+                    <option value={CategoriaPilar.AMOROSO}>Amoroso</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Inicio (Fecha Hora)</label>
+                  <input type="text" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={eventoForm.Fecha_Hora_Inicio} onChange={(e)=>setEventoForm({...eventoForm, Fecha_Hora_Inicio: e.target.value})} />
+                </div>
+                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs cursor-pointer transition-all">Guardar Actividad</button>
               </form>
             )}
 
           </div>
         )}
 
-        {/* Raw Grid renderer */}
-        <table className="w-full text-left font-sans text-xs border-collapse">
-          <thead>
-            {activeSheet === "B" && (
-              <tr className="border-b border-stone-850 bg-stone-500/5 text-stone-400">
-                <th className="p-3 font-semibold uppercase tracking-wider">ID_Ingreso</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Fecha</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Concepto</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Categoría</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Monto_Neto</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Cuenta_Destino</th>
-                <th className="p-3 font-semibold uppercase tracking-wider text-right">Acciones</th>
-              </tr>
-            )}
-
-            {activeSheet === "C" && (
-              <tr className="border-b border-stone-850 bg-stone-500/5 text-stone-400">
-                <th className="p-3 font-semibold uppercase tracking-wider">ID_Tarjeta</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Tarjeta / Instrumento</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Tipo</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Línea de Crédito</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Saldo Disponible</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Deuda Actual</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Pago Mínimo</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Pago No-Ints.</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Corte / Límite</th>
-                <th className="p-3 font-semibold uppercase tracking-wider text-right">Acciones</th>
-              </tr>
-            )}
-
-            {activeSheet === "D" && (
-              <tr className="border-b border-stone-850 bg-stone-500/5 text-stone-400">
-                <th className="p-3 font-semibold uppercase tracking-wider">ID_Egreso</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">ID_Actividad_Origen</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">ID_Tarjeta_Utilizada</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Fecha</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Concepto</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Pilar</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Subcategoría</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Monto</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Tarjeta cargada</th>
-                <th className="p-3 font-semibold uppercase tracking-wider text-right">Acciones</th>
-              </tr>
-            )}
-
-            {activeSheet === "E" && (
-              <tr className="border-b border-stone-850 bg-stone-500/5 text-stone-400">
-                <th className="p-3 font-semibold uppercase tracking-wider">ID_Actividad</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Tipo Agenda</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Pilar</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Título de Actividad</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Descripción</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Fecha Hora Inicio</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Fecha Hora Fin</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Requiere Pago</th>
-                <th className="p-3 font-semibold uppercase tracking-wider">Ref Egreso</th>
-                <th className="p-3 font-semibold uppercase tracking-wider text-right">Acciones</th>
-              </tr>
-            )}
-          </thead>
-          <tbody className="divide-y divide-stone-800">
-            
-            {activeSheet === "B" && ingresos.map(item => (
-              <tr key={item.ID_Ingreso} className="hover:bg-stone-500/5">
-                <td className="p-3 font-mono text-stone-500 max-w-[120px] truncate" title={item.ID_Ingreso}>{item.ID_Ingreso}</td>
-                <td className="p-3 text-stone-300 font-medium font-mono">{item.Fecha}</td>
-                <td className="p-3 font-semibold text-stone-200">{item.Concepto}</td>
-                <td className="p-3 text-stone-400"><span className="px-2 py-0.5 rounded-lg bg-teal-500/10 text-teal-400 font-bold">{item.Categoria}</span></td>
-                <td className="p-3 font-mono font-bold text-teal-400">${item.Monto_Neto.toFixed(2)}</td>
-                <td className="p-3 text-stone-400">{item.Cuenta_Destino || "SaaS Checking"}</td>
-                <td className="p-3 text-right">
-                  <button onClick={() => setIngresos(ingresos.filter(i=> i.ID_Ingreso !== item.ID_Ingreso))} className="p-1 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer transition-all">
-                    <Trash2 className="w-3.5 h-3.5" />
+        {/* Clean card lists instead of spreadsheets */}
+        <div className="space-y-3">
+          
+          {activeSheet === "B" && (
+            ingresos.length === 0 ? <p className="text-xs text-stone-500 py-6 text-center">No hay ingresos registrados.</p> :
+            ingresos.map(item => (
+              <div key={item.ID_Ingreso} className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${
+                darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"
+              }`}>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-teal-500/10 text-teal-400">{item.Categoria}</span>
+                    <span className="text-[10px] font-mono text-stone-500">{item.Fecha}</span>
+                  </div>
+                  <h4 className={`text-xs font-semibold ${darkMode ? "text-white" : "text-stone-900"}`}>{item.Concepto}</h4>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <span className="text-xs font-bold font-mono text-teal-400">${item.Monto_Neto.toFixed(2)}</span>
+                  <button onClick={() => handleDeleteItem("ingresos", item.ID_Ingreso)} className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-xl cursor-pointer transition-all">
+                    <Trash2 className="w-4 h-4" />
                   </button>
-                </td>
-              </tr>
-            ))}
+                </div>
+              </div>
+            ))
+          )}
 
-            {activeSheet === "C" && deudas.map(item => (
-              <tr key={item.ID_Instrumento} className="hover:bg-stone-500/5">
-                <td className="p-3 font-mono text-stone-500 max-w-[110px] truncate" title={item.ID_Instrumento}>{item.ID_Instrumento}</td>
-                <td className="p-3 font-bold text-stone-200">{item.Nombre_Tarjeta}</td>
-                <td className="p-3">
-                  <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
-                    item.Tipo === TipoTarjeta.CREDITO 
-                      ? "bg-rose-500/10 text-rose-450 border border-rose-500/10" 
-                      : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/10"
-                  }`}>
-                    {item.Tipo}
-                  </span>
-                </td>
-                <td className="p-3 font-mono text-stone-400">${item.Limite_Credito.toLocaleString()}</td>
-                <td className="p-3 font-mono font-bold text-emerald-400">${item.Saldo_Disponible.toLocaleString()}</td>
-                <td className="p-3 font-mono text-rose-450 font-bold">${item.Deuda_Actual.toLocaleString()}</td>
-                <td className="p-3 font-mono text-stone-400">${item.Pago_Minimo.toLocaleString()}</td>
-                <td className="p-3 font-mono text-stone-400">${item.Pago_Para_No_Generar_Intereses.toLocaleString()}</td>
-                <td className="p-3 font-mono font-semibold text-stone-400">Día {item.Fecha_Corte} / Día {item.Fecha_Limite_Pago}</td>
-                <td className="p-3 text-right">
-                  <button onClick={() => setDeudas(deudas.filter(d=> d.ID_Instrumento !== item.ID_Instrumento))} className="p-1 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer transition-all">
-                    <Trash2 className="w-3.5 h-3.5" />
+          {activeSheet === "C" && (
+            deudas.length === 0 ? <p className="text-xs text-stone-500 py-6 text-center">No hay tarjetas registradas.</p> :
+            deudas.map(item => (
+              <div key={item.ID_Instrumento} className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${
+                darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"
+              }`}>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${
+                      item.Tipo === TipoTarjeta.CREDITO ? "bg-indigo-500/10 text-indigo-400" : "bg-teal-500/10 text-teal-400"
+                    }`}>{item.Tipo}</span>
+                    <span className="text-[10px] text-stone-500 font-semibold">Corte: Día {item.Fecha_Corte} / Pago: Día {item.Fecha_Limite_Pago}</span>
+                  </div>
+                  <h4 className={`text-xs font-semibold ${darkMode ? "text-white" : "text-stone-900"}`}>{item.Nombre_Tarjeta}</h4>
+                </div>
+                
+                <div className="flex items-center gap-6 font-mono text-xs">
+                  <div className="text-right">
+                    <span className="text-stone-500 text-[9px] block uppercase font-bold">Disponible</span>
+                    <span className="text-emerald-500 font-bold">${item.Saldo_Disponible.toLocaleString()}</span>
+                  </div>
+                  {item.Tipo === TipoTarjeta.CREDITO && (
+                    <div className="text-right">
+                      <span className="text-stone-500 text-[9px] block uppercase font-bold">Deuda</span>
+                      <span className="text-rose-500 font-bold">${item.Deuda_Actual.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <button onClick={() => handleDeleteItem("deudas", item.ID_Instrumento)} className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-xl cursor-pointer transition-all">
+                    <Trash2 className="w-4 h-4" />
                   </button>
-                </td>
-              </tr>
-            ))}
+                </div>
+              </div>
+            ))
+          )}
 
-            {activeSheet === "D" && egresos.map(item => (
-              <tr key={item.ID_Egreso} className="hover:bg-stone-500/5">
-                <td className="p-3 font-mono text-stone-500 max-w-[120px] truncate" title={item.ID_Egreso}>{item.ID_Egreso}</td>
-                <td className="p-3 font-mono text-stone-400 max-w-[110px] truncate" title={item.ID_Actividad_Origen || undefined}>{item.ID_Actividad_Origen || "NULL"}</td>
-                <td className="p-3 font-mono text-stone-500 max-w-[110px] truncate" title={item.ID_Tarjeta_Utilizada}>{item.ID_Tarjeta_Utilizada}</td>
-                <td className="p-3 text-stone-400 font-mono font-semibold">{item.Fecha}</td>
-                <td className="p-3 font-bold text-stone-200">{item.Concepto}</td>
-                <td className="p-3"><span className="px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-400 font-bold">{item.Categoria_Pilar}</span></td>
-                <td className="p-3 text-stone-400">{item.Subcategoria}</td>
-                <td className="p-3 font-mono font-extrabold text-amber-500">-${item.Monto.toFixed(2)}</td>
-                <td className="p-3 font-bold text-stone-400">{item.Metodo_Pago}</td>
-                <td className="p-3 text-right">
-                  <button onClick={() => setEgresos(egresos.filter(eg=> eg.ID_Egreso !== item.ID_Egreso))} className="p-1 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer transition-all">
-                    <Trash2 className="w-3.5 h-3.5" />
+          {activeSheet === "D" && (
+            egresos.length === 0 ? <p className="text-xs text-stone-500 py-6 text-center">No hay gastos registrados.</p> :
+            egresos.map(item => (
+              <div key={item.ID_Egreso} className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${
+                darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"
+              }`}>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-400">{item.Categoria_Pilar}</span>
+                    <span className="text-[10px] font-mono text-stone-500">{item.Fecha}</span>
+                    <span className="text-[10px] text-stone-500">({item.Metodo_Pago})</span>
+                  </div>
+                  <h4 className={`text-xs font-semibold ${darkMode ? "text-white" : "text-stone-900"}`}>{item.Concepto}</h4>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <span className="text-xs font-bold font-mono text-rose-400">-${item.Monto.toFixed(2)}</span>
+                  <button onClick={() => handleDeleteItem("egresos", item.ID_Egreso)} className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-xl cursor-pointer transition-all">
+                    <Trash2 className="w-4 h-4" />
                   </button>
-                </td>
-              </tr>
-            ))}
+                </div>
+              </div>
+            ))
+          )}
 
-            {activeSheet === "E" && eventos.map(item => (
-              <tr key={item.ID_Actividad} className="hover:bg-stone-500/5">
-                <td className="p-3 font-mono text-stone-500 max-w-[120px] truncate" title={item.ID_Actividad}>{item.ID_Actividad}</td>
-                <td className="p-3 text-stone-400 font-semibold">{item.Tipo_Agenda}</td>
-                <td className="p-3"><span className="px-2 py-0.5 rounded-lg bg-purple-500/10 text-purple-400 font-bold">{item.Pilar}</span></td>
-                <td className="p-3 font-bold text-stone-200">{item.Titulo_Actividad}</td>
-                <td className="p-3 text-stone-400 max-w-[180px] truncate" title={item.Descripcion_Detallada}>{item.Descripcion_Detallada}</td>
-                <td className="p-3 font-mono text-stone-400">{item.Fecha_Hora_Inicio}</td>
-                <td className="p-3 font-mono text-stone-400">{item.Fecha_Hora_Fin}</td>
-                <td className="p-3 font-bold text-stone-300">{item.Requiere_Pago ? "SÍ ✅" : "NO ❌"}</td>
-                <td className="p-3 font-mono text-stone-500 max-w-[100px] truncate" title={item.ID_Egreso_Asociado || undefined}>{item.ID_Egreso_Asociado || "NULL"}</td>
-                <td className="p-3 text-right">
-                  <button onClick={() => setEventos(eventos.filter(ev=> ev.ID_Actividad !== item.ID_Actividad))} className="p-1 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer transition-all">
-                    <Trash2 className="w-3.5 h-3.5" />
+          {activeSheet === "E" && (
+            eventos.length === 0 ? <p className="text-xs text-stone-500 py-6 text-center">No hay actividades registradas.</p> :
+            eventos.map(item => (
+              <div key={item.ID_Actividad} className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${
+                darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"
+              }`}>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-400">{item.Pilar}</span>
+                    <span className="text-[10px] font-mono text-stone-500">{item.Fecha_Hora_Inicio.replace("T", " ")}</span>
+                  </div>
+                  <h4 className={`text-xs font-semibold ${darkMode ? "text-white" : "text-stone-900"}`}>{item.Titulo_Actividad}</h4>
+                  <p className="text-[11px] text-stone-500">{item.Descripcion_Detallada}</p>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <button onClick={() => handleDeleteItem("eventos", item.ID_Actividad)} className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-xl cursor-pointer transition-all">
+                    <Trash2 className="w-4 h-4" />
                   </button>
-                </td>
-              </tr>
-            ))}
+                </div>
+              </div>
+            ))
+          )}
 
-          </tbody>
-        </table>
-        
-        {/* Total rows count in database partition footer */}
-        <div className="mt-4 pt-4 border-t border-stone-850 flex items-center justify-between text-[11px] text-stone-400">
-          <span>Inquilino Activo: <strong className="font-mono text-teal-400">UUID Secure Data Block</strong></span>
-          <span>Indexación garantizada via <strong className="font-mono">ID_Usuario (UUID)</strong>.</span>
         </div>
       </div>
     </div>

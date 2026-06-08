@@ -25,13 +25,8 @@ export default function ScriptEngineTab({ darkMode }: { darkMode: boolean }) {
       desc: "La función parseGmailInvoices() busca correos de compras, retiros o colegiaturas recurrentes (ej. UVM), lee los datos con Gemini AI Pro/Flash (o Regex si es fallback) e impacta directo los egresos."
     },
     {
-      icon: <Calendar className="w-4 h-4 text-rose-500" />,
-      title: "3. Sincronización de Agenda (Calendar)",
-      desc: "syncFinancialCalendar() lee la Tabla C de deudas y crea eventos color ROJO para fechas de corte y límites de pago. Aplica alertamiento inteligente de [DESCALCE] si un pago vence antes del siguiente cobro."
-    },
-    {
       icon: <FileText className="w-4 h-4 text-amber-500" />,
-      title: "4. Auditoría de Progreso Semanal",
+      title: "3. Auditoría de Progreso Semanal",
       desc: "generateWeeklyInsights() computa balances, cruza metas de Salud, Escolar y Laboral, consulta a Gemini y escribe automáticamente un reporte ejecutivo consolidado en tu cuenta de Google Docs."
     }
   ];

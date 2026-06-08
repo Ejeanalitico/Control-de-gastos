@@ -420,6 +420,67 @@ export default function DashboardTab({
     };
   }, [egresos, totalIncomes, activeUser]);
 
+  const periodicItems = useMemo(() => {
+    const list: Array<{ name: string; category: string; amount: number; period: string; color: string; detail: string }> = [];
+
+    // Filter fixed recurring egresos
+    egresos.forEach(e => {
+      if (
+        e.Tipo_Gasto === "Fijo" || 
+        e.Subcategoria.toLowerCase().includes("mensual") || 
+        e.Concepto.toLowerCase().includes("renta") || 
+        e.Concepto.toLowerCase().includes("suscrip") ||
+        e.Concepto.toLowerCase().includes("plan")
+      ) {
+        list.push({
+          name: e.Concepto,
+          category: e.Categoria_Pilar.replace("_", " "),
+          amount: e.Monto,
+          period: "Mensual",
+          color: "teal",
+          detail: `Vía: ${e.Metodo_Pago} | Categoría: ${e.Subcategoria}`
+        });
+      }
+    });
+
+    // Add credit card cut-off/payment schedules from deudas
+    deudas.forEach(card => {
+      if (card.Tipo === TipoTarjeta.CREDITO) {
+        list.push({
+          name: `Liquidación: ${card.Nombre_Tarjeta}`,
+          category: "Finanzas",
+          amount: card.Pago_Para_No_Generar_Intereses || card.Pago_Minimo || 150.00,
+          period: `Día ${card.Fecha_Limite_Pago} del mes`,
+          color: "rose",
+          detail: `Corte: Día ${card.Fecha_Corte} | Pago Mínimo Obligatorio: $${card.Pago_Minimo} USD`
+        });
+      }
+    });
+
+    // Fallback if list empty
+    if (list.length === 0) {
+      list.push({
+        name: "Renta de Departamento",
+        category: "Vivienda",
+        amount: 1200.00,
+        period: "Día 02 de cada mes",
+        color: "teal",
+        detail: "Fijo - Citi Checking Débito"
+      });
+      list.push({
+        name: "Plan de Internet + Telefonía Móvil",
+        category: "Comunicaciones",
+        amount: 45.00,
+        period: "Día 10 de cada mes",
+        color: "teal",
+        detail: "Cargo automático en TDC"
+      });
+    }
+
+    return list;
+  }, [egresos, deudas]);
+
+
   return (
     <div className="space-y-8 animate-fadeIn font-sans">
       
@@ -526,36 +587,77 @@ export default function DashboardTab({
                   onClick={() => {
                     if (hasEvents) setSelectedDateStr(cDay.dateStr);
                   }}
-                  className={`min-h-[60px] p-1.5 border rounded-2xl flex flex-col justify-between transition-all cursor-pointer ${
+                  className={`min-h-[105px] p-2 border flex flex-col justify-start transition-all cursor-pointer ${
                     !hasEvents ? "bg-transparent border-transparent cursor-default"
                     : isSelected 
-                      ? "bg-teal-500/10 border-teal-500/30 text-teal-500 font-bold"
+                      ? darkMode
+                        ? "bg-stone-900/60 border-teal-500/50"
+                        : "bg-stone-50 border-teal-500/50 shadow-sm"
                       : darkMode 
-                        ? "bg-stone-950/40 border-stone-900 text-stone-300 hover:border-stone-800" 
-                        : "bg-stone-50/50 border-stone-150 text-stone-800 hover:bg-stone-100"
+                        ? "bg-[#161616]/40 border-stone-900 text-stone-300 hover:border-stone-800" 
+                        : "bg-white border-stone-150 text-stone-800 hover:bg-stone-50"
                   }`}
                 >
-                  <span className="text-[10px] text-left">{cDay.dayNum}</span>
+                  {/* Day number with selected circular badge */}
+                  <div className="flex items-center justify-between w-full mb-1">
+                    {hasEvents && (
+                      isSelected ? (
+                        <span className="w-5 h-5 rounded-full bg-teal-500 text-white flex items-center justify-center text-[10px] font-bold">
+                          {cDay.dayNum}
+                        </span>
+                      ) : (
+                        <span className={`text-[10px] font-bold ${
+                          cDay.dayNum === 1 ? (darkMode ? "text-stone-400" : "text-stone-600") : (darkMode ? "text-stone-500" : "text-stone-400")
+                        }`}>
+                          {cDay.dayNum === 1 ? `1 de ${monthNames[currentMonth].slice(0, 3).toLowerCase()}` : cDay.dayNum}
+                        </span>
+                      )
+                    )}
+                  </div>
                   
-                  {/* Event Dots */}
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {dateEvents.slice(0, 4).map((e, index) => {
-                      const colorMap: Record<string, string> = {
-                        green: "bg-emerald-500",
-                        blue: "bg-indigo-500",
-                        indigo: "bg-indigo-500",
-                        orange: "bg-orange-500",
-                        purple: "bg-purple-500",
-                        red: "bg-red-500"
-                      };
+                  {/* Event list stacked vertically */}
+                  <div className="space-y-1 overflow-hidden w-full flex-grow flex flex-col justify-start">
+                    {dateEvents.slice(0, 3).map((e, index) => {
+                      const dotColorClass = 
+                        e.Color === "green" ? "bg-emerald-500"
+                        : e.Color === "blue" || e.Color === "indigo" ? "bg-sky-400"
+                        : e.Color === "orange" ? "bg-amber-500"
+                        : e.Color === "purple" ? "bg-purple-400"
+                        : "bg-rose-500";
+
+                      // Extract time from Fecha_Hora_Inicio (e.g. "2026-06-08T10:00")
+                      let timeStr = "";
+                      if (e.Fecha_Hora_Inicio && e.Fecha_Hora_Inicio.includes("T")) {
+                        const rawTime = e.Fecha_Hora_Inicio.split("T")[1];
+                        const parts = rawTime.split(":");
+                        if (parts.length >= 2) {
+                          const hour = parseInt(parts[0], 10);
+                          const min = parts[1];
+                          const ampm = hour >= 12 ? "pm" : "am";
+                          const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+                          timeStr = `${displayHour}:${min}${ampm}`;
+                        }
+                      }
+
                       return (
-                        <span 
+                        <div 
                           key={index} 
-                          title={e.Titulo_Actividad}
-                          className={`w-1.5 h-1.5 rounded-full ${colorMap[e.Color] || "bg-stone-400"}`} 
-                        />
+                          title={`${timeStr ? timeStr + " " : ""}${e.Titulo_Actividad || e.Titulo}`}
+                          className="flex items-center gap-1.5 text-[9px] font-medium leading-none truncate w-full text-stone-600 dark:text-stone-300 select-none py-0.5"
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColorClass}`} />
+                          <span className="truncate">
+                            {timeStr && <span className="opacity-75 font-semibold mr-1">{timeStr}</span>}
+                            {e.Titulo_Actividad || e.Titulo}
+                          </span>
+                        </div>
                       );
                     })}
+                    {dateEvents.length > 3 && (
+                      <div className="text-[8px] font-bold text-stone-500 text-left pl-3 leading-none mt-0.5">
+                        +{dateEvents.length - 3} más
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -766,26 +868,33 @@ export default function DashboardTab({
       {/* 4. Metas de Crecimiento & Rule Warnings */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Metas SMART (Apple Card-List) */}
+        {/* Gastos y Adquisiciones Periódicos (Apple Card-List) */}
         <div className={`p-6 rounded-[2.5rem] border transition-all ${
           darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
         }`}>
           <h3 className={`text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-1.5 ${darkMode ? "text-stone-300" : "text-stone-800"}`}>
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            <span>Metas de Crecimiento</span>
+            <Clock className="w-4 h-4 text-teal-500 animate-pulse" />
+            <span>Gastos y Adquisiciones Periódicos</span>
           </h3>
 
           <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
-            {metas.map(meta => (
-              <div key={meta.ID_Meta} className={`p-4 rounded-2xl border ${darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"}`}>
+            {periodicItems.map((item, idx) => (
+              <div key={idx} className={`p-4 rounded-2xl border ${darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"}`}>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[9px] font-bold uppercase tracking-wider bg-teal-500/10 text-teal-400 px-1.5 py-0.5 rounded">
-                    {meta.Pilar}
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                    item.color === "rose" ? "bg-rose-500/10 text-rose-400" : "bg-teal-500/10 text-teal-400"
+                  }`}>
+                    {item.category}
                   </span>
-                  <span className="text-[10px] font-semibold text-stone-400">${meta.Presupuesto_Asignado} USD</span>
+                  <span className="text-[10px] font-semibold text-stone-400">{item.period}</span>
                 </div>
-                <h4 className={`text-xs font-bold ${darkMode ? "text-white" : "text-stone-900"}`}>{meta.Meta_SMART}</h4>
-                <p className="text-[11px] text-stone-500 mt-1">🔑 Indicador: {meta.Indicador_Exito}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className={`text-xs font-bold truncate ${darkMode ? "text-white" : "text-stone-900"}`}>{item.name}</h4>
+                  <span className={`text-xs font-mono font-bold ${item.color === "rose" ? "text-rose-500" : "text-teal-500"}`}>
+                    ${item.amount.toLocaleString()} USD
+                  </span>
+                </div>
+                <p className="text-[11px] text-stone-500 mt-1">{item.detail}</p>
               </div>
             ))}
           </div>

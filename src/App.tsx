@@ -3,7 +3,7 @@ import ThemeToggle from "./components/ThemeToggle";
 import DashboardTab from "./components/DashboardTab";
 import SheetsSimulatorTab from "./components/SheetsSimulatorTab";
 import GeminiAuditTab from "./components/GeminiAuditTab";
-import ScriptEngineTab from "./components/ScriptEngineTab";
+
 import WorkspaceSyncTab from "./components/WorkspaceSyncTab";
 import AuthPortal from "./components/AuthPortal";
 import { 
@@ -257,20 +257,6 @@ export default function App() {
                 <span>Auditoría IA</span>
               </button>
 
-              <button
-                id="tab-script"
-                onClick={() => setActiveTab("script")}
-                className={`cursor-pointer flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
-                  activeTab === "script"
-                    ? darkMode
-                      ? "bg-stone-800 text-white border border-stone-700 shadow-sm"
-                      : "bg-white text-stone-900 border border-stone-250 shadow-sm"
-                    : "text-stone-500 hover:text-stone-750"
-                }`}
-              >
-                <FileCode className="w-3.5 h-3.5" />
-                <span>Automatización</span>
-              </button>
 
               <button
                 id="tab-workspace"
@@ -336,9 +322,6 @@ export default function App() {
                 />
               )}
 
-              {activeTab === "script" && (
-                <ScriptEngineTab darkMode={darkMode} />
-              )}
 
               {activeTab === "workspace" && (
                 <WorkspaceSyncTab 

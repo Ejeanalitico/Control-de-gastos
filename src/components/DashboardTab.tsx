@@ -184,6 +184,11 @@ export default function DashboardTab({
       };
 
       setGcalLoading(true);
+      if (gToken.startsWith("mock_google_token_")) {
+        fillMockEvents();
+        setGcalLoading(false);
+        return;
+      }
       try {
         const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=25", {
           headers: { Authorization: `Bearer ${gToken}` }
@@ -417,30 +422,34 @@ export default function DashboardTab({
         const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
         const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
         if (gToken && isConnected === "true" && selectedDateStr) {
-          try {
-            const syncRes = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${gToken}`,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                summary: `🏁 Micrometa: ${titulo.trim()}`,
-                description: `Pilar: ${selectedMeta?.Pilar || 'Personal'} | Gasto: ${parseMonto}`,
-                start: {
-                  dateTime: `${selectedDateStr}T10:00:00-06:00`
+          if (gToken.startsWith("mock_google_token_")) {
+            googleEventId = "mock-mm-evt-" + Math.random().toString(36).substring(2, 9) + "-" + Date.now();
+          } else {
+            try {
+              const syncRes = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${gToken}`,
+                  "Content-Type": "application/json"
                 },
-                end: {
-                  dateTime: `${selectedDateStr}T11:00:00-06:00`
-                }
-              })
-            });
-            if (syncRes.ok) {
-              const syncData = await syncRes.json();
-              googleEventId = syncData.id;
+                body: JSON.stringify({
+                  summary: `🏁 Micrometa: ${titulo.trim()}`,
+                  description: `Pilar: ${selectedMeta?.Pilar || 'Personal'} | Gasto: ${parseMonto}`,
+                  start: {
+                    dateTime: `${selectedDateStr}T10:00:00-06:00`
+                  },
+                  end: {
+                    dateTime: `${selectedDateStr}T11:00:00-06:00`
+                  }
+                })
+              });
+              if (syncRes.ok) {
+                const syncData = await syncRes.json();
+                googleEventId = syncData.id;
+              }
+            } catch (syncErr) {
+              console.error("Google Calendar sync failed for micrometa in dashboard:", syncErr);
             }
-          } catch (syncErr) {
-            console.error("Google Calendar sync failed for micrometa in dashboard:", syncErr);
           }
         }
 
@@ -486,30 +495,34 @@ export default function DashboardTab({
         const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
         const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
         if (gToken && isConnected === "true") {
-          try {
-            const syncRes = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${gToken}`,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                summary: titulo,
-                description: descripcion || `Cita del pilar ${pilar}`,
-                start: {
-                  dateTime: `${selectedDateStr}T${startHourMin}:00-06:00`
+          if (gToken.startsWith("mock_google_token_")) {
+            googleEventId = "mock-act-evt-" + Math.random().toString(36).substring(2, 9) + "-" + Date.now();
+          } else {
+            try {
+              const syncRes = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${gToken}`,
+                  "Content-Type": "application/json"
                 },
-                end: {
-                  dateTime: `${selectedDateStr}T${horaFin}:00-06:00`
-                }
-              })
-            });
-            if (syncRes.ok) {
-              const syncData = await syncRes.json();
-              googleEventId = syncData.id;
+                body: JSON.stringify({
+                  summary: titulo,
+                  description: descripcion || `Cita del pilar ${pilar}`,
+                  start: {
+                    dateTime: `${selectedDateStr}T${startHourMin}:00-06:00`
+                  },
+                  end: {
+                    dateTime: `${selectedDateStr}T${horaFin}:00-06:00`
+                  }
+                })
+              });
+              if (syncRes.ok) {
+                const syncData = await syncRes.json();
+                googleEventId = syncData.id;
+              }
+            } catch (syncErr) {
+              console.error("Google Calendar sync failed:", syncErr);
             }
-          } catch (syncErr) {
-            console.error("Google Calendar sync failed:", syncErr);
           }
         }
 
@@ -586,7 +599,7 @@ export default function DashboardTab({
       const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
       const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
 
-      if (googleEventId && !googleEventId.startsWith("g-") && !googleEventId.startsWith("evt-") && gToken && isConnected === "true") {
+      if (googleEventId && !googleEventId.startsWith("g-") && !googleEventId.startsWith("evt-") && !googleEventId.startsWith("mock-") && gToken && isConnected === "true" && !gToken.startsWith("mock_google_token_")) {
         try {
           await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`, {
             method: "DELETE",
@@ -725,7 +738,7 @@ export default function DashboardTab({
       const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
       const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
 
-      if (googleEventId && !googleEventId.startsWith("g-") && gToken && isConnected === "true") {
+      if (googleEventId && !googleEventId.startsWith("g-") && !googleEventId.startsWith("mock-") && gToken && isConnected === "true" && !gToken.startsWith("mock_google_token_")) {
         try {
           await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`, {
             method: "PUT",

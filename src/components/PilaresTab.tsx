@@ -297,8 +297,11 @@ export default function PilaresTab({
     const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
 
     if (metaFecha && gToken && isConnected === "true") {
-      try {
-        const syncRes = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+      if (gToken.startsWith("mock_google_token_")) {
+        googleEventId = "mock-meta-evt-" + Math.random().toString(36).substring(2, 9) + "-" + Date.now();
+      } else {
+        try {
+          const syncRes = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${gToken}`,
@@ -323,6 +326,7 @@ export default function PilaresTab({
         console.error("Google Calendar sync failed for Meta:", syncErr);
       }
     }
+  }
 
     const metaObj: MetaPilar = {
       ID_Usuario: activeUser.ID_Usuario,
@@ -399,7 +403,7 @@ export default function PilaresTab({
       const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
       const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
 
-      if (gToken && isConnected === "true") {
+      if (gToken && isConnected === "true" && !gToken.startsWith("mock_google_token_")) {
         // 1. Delete Meta Google Calendar event
         const metaObj = metas.find(m => m.ID_Meta === id);
         if (metaObj && metaObj.ID_Evento_Calendario) {
@@ -454,8 +458,11 @@ export default function PilaresTab({
     const metaPilarName = metaObj ? metaObj.Pilar : "Personal";
 
     if (mmFecha && gToken && isConnected === "true") {
-      try {
-        const syncRes = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+      if (gToken.startsWith("mock_google_token_")) {
+        googleEventId = "mock-mm-evt-" + Math.random().toString(36).substring(2, 9) + "-" + Date.now();
+      } else {
+        try {
+          const syncRes = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${gToken}`,
@@ -480,6 +487,7 @@ export default function PilaresTab({
         console.error("Google Calendar sync failed for Micrometa:", syncErr);
       }
     }
+  }
 
     const mmObj: Micrometa = {
       ID_Micrometa: mmId,
@@ -567,7 +575,7 @@ export default function PilaresTab({
       const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
 
       const mmObj = micrometas.find(m => m.ID_Micrometa === id);
-      if (mmObj && mmObj.ID_Evento_Calendario && gToken && isConnected === "true") {
+      if (mmObj && mmObj.ID_Evento_Calendario && gToken && isConnected === "true" && !gToken.startsWith("mock_google_token_")) {
         try {
           await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${mmObj.ID_Evento_Calendario}`, {
             method: "DELETE",

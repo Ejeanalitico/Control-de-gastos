@@ -33,8 +33,6 @@ export default function AuthPortal({
   const [formError, setFormError] = useState<string>("");
 
   // Real Google Auth States
-  const [showConfigAlert, setShowConfigAlert] = useState<boolean>(false);
-
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
@@ -91,16 +89,10 @@ export default function AuthPortal({
   };
 
   const handleGoogleOAuthSimulate = () => {
-    const clientId = googleClientId.trim();
-    if (!clientId || clientId.includes("example.apps.googleusercontent.com")) {
-      // Show professional OAuth setup guide instead of simulated popups
-      setShowConfigAlert(true);
-      return;
-    }
-
     setOauthLoading(true);
     setFormError("");
 
+    const clientId = googleClientId.trim();
     // Build standard implicit flow URL for Google Calendar & UserInfo profile scopes
     const redirectUri = window.location.origin + "/";
     const scope = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile email openid";
@@ -312,79 +304,6 @@ export default function AuthPortal({
         </p>
       </div>
 
-      {/* REAL GOOGLE OAUTH CONFIGURATION INSTRUCTION MODAL */}
-      {showConfigAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 transition-all">
-          <div className={`w-full max-w-lg p-6 md:p-8 rounded-[2.5rem] border shadow-2xl transition-all ${
-            darkMode ? "bg-stone-900 border-stone-800 text-white shadow-stone-950/80" : "bg-white border-stone-200 text-stone-900 shadow-stone-200/80"
-          }`}>
-            <div className="flex items-center gap-3 mb-5 border-b pb-4 border-stone-200 dark:border-stone-800">
-              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
-                <Sparkles className="w-6 h-6 animate-pulse" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold">Configuración de Google OAuth Requerida</h3>
-                <p className="text-[10px] text-stone-500 font-bold uppercase tracking-wider mt-0.5">Conexión Profesional Real</p>
-              </div>
-            </div>
-
-            <div className="text-xs space-y-4 leading-relaxed max-h-[350px] overflow-y-auto pr-1">
-              <p>
-                Para habilitar una conexión auténtica con tu cuenta de Google y habilitar la sincronización en tiempo real con Google Calendar, debes configurar tu propio <strong>Client ID de Google</strong>.
-              </p>
-              
-              <div className="space-y-2.5">
-                <p className="font-semibold text-teal-500">Pasos para la configuración:</p>
-                <ol className="list-decimal pl-4 space-y-2">
-                  <li>
-                    Ingresa a la consola de desarrolladores: <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-teal-455 hover:underline">Google Cloud Console</a>.
-                  </li>
-                  <li>
-                    Crea un proyecto (ej. <em>"Control 5 Pilares"</em>).
-                  </li>
-                  <li>
-                    Configura la <strong>Pantalla de consentimiento de OAuth</strong> (tipo Externo, agrega tu correo).
-                  </li>
-                  <li>
-                    Ve a <strong>Credenciales</strong> &gt; <strong>Crear credenciales</strong> &gt; <strong>ID de cliente de OAuth</strong>.
-                  </li>
-                  <li>
-                    Elige tipo de aplicación: <strong>Aplicación web</strong>.
-                  </li>
-                  <li>
-                    En <strong>Orígenes de JavaScript autorizados</strong> agrega: <code className="bg-stone-950 text-emerald-450 px-1.5 py-0.5 rounded font-mono">http://localhost:3000</code>.
-                  </li>
-                  <li>
-                    En <strong>URIs de redireccionamiento autorizados</strong> agrega exactamente: <code className="bg-stone-950 text-emerald-450 px-1.5 py-0.5 rounded font-mono">http://localhost:3000/</code> (incluyendo la barra diagonal al final).
-                  </li>
-                  <li>
-                    Copia el <strong>ID de cliente</strong> generado.
-                  </li>
-                </ol>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-stone-950 text-stone-300 font-mono text-[10px] border border-stone-850 space-y-2 select-text">
-                <p className="text-stone-500"># Edita el archivo .env de tu proyecto y pega tu Client ID:</p>
-                <p>GOOGLE_CLIENT_ID="<span className="text-teal-400">TU_CLIENT_ID_GENERADO.apps.googleusercontent.com</span>"</p>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-400 text-[11px] font-medium animate-pulse">
-                💡 <strong>Una vez guardado:</strong> Guarda el archivo <code>.env</code>. El servidor se reiniciará automáticamente. Recarga esta página para iniciar la sesión real con Google.
-              </div>
-            </div>
-
-            <div className="mt-6 pt-4 border-t border-stone-200 dark:border-stone-800 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowConfigAlert(false)}
-                className="py-2.5 px-6 rounded-2xl text-xs font-semibold bg-teal-500 hover:bg-teal-600 text-white transition-all cursor-pointer shadow-lg shadow-teal-500/10"
-              >
-                Entendido
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

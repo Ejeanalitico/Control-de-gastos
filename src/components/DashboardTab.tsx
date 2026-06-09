@@ -154,41 +154,15 @@ export default function DashboardTab({
         return;
       }
 
-      const fillMockEvents = () => {
-        setGoogleEvents([
-          {
-            id: "g-mock-1",
-            summary: "📅 Sesión de Mentoría Financiera (Google Calendar)",
-            description: "Revisar los gastos del pilar Amoroso con el consultor.",
-            start: "2026-06-08T10:00:00Z",
-            end: "2026-06-08T11:00:00Z",
-            color: "indigo"
-          },
-          {
-            id: "g-mock-2",
-            summary: "🏋️ Récord de Gimnasio - Salir a Correr",
-            description: "Meta vinculada al Pilar Salud en el SaaS.",
-            start: "2026-06-09T08:00:00Z",
-            end: "2026-06-09T09:00:00Z",
-            color: "indigo"
-          },
-          {
-            id: "g-mock-3",
-            summary: "💡 Evaluación de Exclusiones de Impuesto",
-            description: "Recomendado por el optimizador avalancha de deudas.",
-            start: "2026-06-11T12:00:00Z",
-            end: "2026-06-11T13:30:00Z",
-            color: "indigo"
-          }
-        ]);
+      // Helper to clear expired tokens silently
+      const clearExpiredToken = () => {
+        localStorage.removeItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
+        localStorage.removeItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+        localStorage.removeItem(`pilar5_g_user_${activeUser.ID_Usuario}`);
+        setGoogleEvents([]);
       };
 
       setGcalLoading(true);
-      if (gToken.startsWith("mock_google_token_")) {
-        fillMockEvents();
-        setGcalLoading(false);
-        return;
-      }
       try {
         const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=25", {
           headers: { Authorization: `Bearer ${gToken}` }
@@ -204,12 +178,14 @@ export default function DashboardTab({
             end: it.end?.dateTime || it.end?.date || "",
             color: "indigo"
           })));
+        } else if (res.status === 401 || res.status === 403) {
+          // Token expired or invalid — clear silently, user must re-authenticate
+          clearExpiredToken();
         } else {
-          fillMockEvents();
+          setGoogleEvents([]);
         }
-      } catch (err) {
-        console.error("Error fetching Google Calendar:", err);
-        fillMockEvents();
+      } catch {
+        setGoogleEvents([]);
       } finally {
         setGcalLoading(false);
       }

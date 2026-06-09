@@ -87,14 +87,15 @@ export default function App() {
     const detectCurrency = async () => {
       try {
         const res = await fetch("/api/detect-currency");
-        if (res.ok) {
+        const contentType = res.headers.get("content-type") || "";
+        if (res.ok && contentType.includes("application/json")) {
           const data = await res.json();
           if (data.currency) {
             setCurrency(data.currency);
           }
         }
-      } catch (err) {
-        console.error("Error detecting currency:", err);
+      } catch {
+        // Silently ignore — defaults to USD
       }
     };
     detectCurrency();

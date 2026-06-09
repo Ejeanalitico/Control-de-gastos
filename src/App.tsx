@@ -3,6 +3,8 @@ import ThemeToggle from "./components/ThemeToggle";
 import DashboardTab from "./components/DashboardTab";
 import SheetsSimulatorTab from "./components/SheetsSimulatorTab";
 import GeminiAuditTab from "./components/GeminiAuditTab";
+import PilaresTab from "./components/PilaresTab";
+import ProfileTab from "./components/ProfileTab";
 
 import WorkspaceSyncTab from "./components/WorkspaceSyncTab";
 import AuthPortal from "./components/AuthPortal";
@@ -12,7 +14,10 @@ import {
   Deuda, 
   MetaPilar, 
   Usuario, 
-  AgendaEvento 
+  AgendaEvento,
+  Pilar,
+  CorrelacionPilar,
+  Micrometa
 } from "./types";
 import { 
   Building2, 
@@ -23,7 +28,9 @@ import {
   LogOut,
   Sliders,
   ShieldCheck,
-  Cloud
+  Cloud,
+  Target,
+  User
 } from "lucide-react";
 
 export default function App() {
@@ -52,9 +59,46 @@ export default function App() {
   const [deudas, setDeudas] = useState<Deuda[]>([]);
   const [metas, setMetas] = useState<MetaPilar[]>([]);
   const [eventos, setEventos] = useState<AgendaEvento[]>([]);
+  const [pilares, setPilares] = useState<Pilar[]>([]);
+  const [correlacionesPilares, setCorrelacionesPilares] = useState<CorrelacionPilar[]>([]);
+  const [micrometas, setMicrometas] = useState<Micrometa[]>([]);
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "sheets" | "ia" | "script" | "workspace">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "sheets" | "ia" | "pilares" | "perfil" | "workspace">("dashboard");
   const [loadingData, setLoadingData] = useState<boolean>(false);
+  const [currency, setCurrency] = useState<string>("USD");
+  const [googleClientId, setGoogleClientId] = useState<string>("");
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch("/api/config");
+        if (res.ok) {
+          const data = await res.json();
+          setGoogleClientId(data.googleClientId || "");
+        }
+      } catch (err) {
+        console.error("Error fetching config:", err);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  useEffect(() => {
+    const detectCurrency = async () => {
+      try {
+        const res = await fetch("https://ipapi.co/json/");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.currency) {
+            setCurrency(data.currency);
+          }
+        }
+      } catch (err) {
+        console.error("Error detecting currency by IP:", err);
+      }
+    };
+    detectCurrency();
+  }, []);
 
   // Sync back theme to storage
   useEffect(() => {
@@ -95,52 +139,20 @@ export default function App() {
         if (existingUserId && existingUserStr) {
           userObj = JSON.parse(existingUserStr);
         } else {
-          // 2. Perform backend registration or login using secure OAuth flows
-          const registerRes = await fetch("/api/auth/register", {
+          // Perform backend registration or login using Google Access Token directly
+          const authRes = await fetch("/api/auth/google", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name,
-              email,
-              password: "oauth_placeholder_secure_pass_123"
-            })
+            body: JSON.stringify({ token: accessToken })
           });
 
-          if (registerRes.ok) {
-            const regData = await registerRes.json();
-            userObj = regData.user;
-          } else {
-            // Attempt login if already registered
-            const loginRes = await fetch("/api/auth/login", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                email,
-                password: "oauth_placeholder_secure_pass_123"
-              })
-            });
-
-            if (!loginRes.ok) {
-              // Seeded user fallback password check
-              const seededLoginRes = await fetch("/api/auth/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  email,
-                  password: "password123"
-                })
-              });
-
-              if (!seededLoginRes.ok) {
-                throw new Error("No se pudo registrar ni iniciar sesión con esta cuenta de Google.");
-              }
-              const seededData = await seededLoginRes.json();
-              userObj = seededData.user;
-            } else {
-              const loginData = await loginRes.json();
-              userObj = loginData.user;
-            }
+          if (!authRes.ok) {
+            const errData = await authRes.json();
+            throw new Error(errData.error || "No se pudo registrar ni iniciar sesión con esta cuenta de Google.");
           }
+
+          const authData = await authRes.json();
+          userObj = authData.user;
         }
 
         // 3. Connect and persist Google token & status locally
@@ -170,6 +182,9 @@ export default function App() {
             setDeudas(data.deudas || []);
             setMetas(data.metas || []);
             setEventos(data.eventos || []);
+            setPilares(data.pilares || []);
+            setCorrelacionesPilares(data.correlacionesPilares || []);
+            setMicrometas(data.micrometas || []);
           }
         }
       } catch (err: any) {
@@ -197,6 +212,9 @@ export default function App() {
           setDeudas(data.deudas || []);
           setMetas(data.metas || []);
           setEventos(data.eventos || []);
+          setPilares(data.pilares || []);
+          setCorrelacionesPilares(data.correlacionesPilares || []);
+          setMicrometas(data.micrometas || []);
         }
       } catch (err) {
         console.error("Error loading user data from SQLite:", err);
@@ -253,6 +271,7 @@ export default function App() {
         usuarios={[]} // Compatibility prop
         onLoginSuccess={handleLoginSuccess}
         onRegisterSuccess={handleRegisterSuccess}
+        googleClientId={googleClientId}
       />
     );
   }
@@ -331,13 +350,13 @@ export default function App() {
         ) : (
           <>
             {/* Navigation Tabs (Apple styling - renamed with friendly titles) */}
-            <div className={`flex items-center p-1.5 rounded-2xl border max-w-2xl ${
+            <div className={`flex flex-wrap items-center p-1.5 rounded-2xl border max-w-4xl ${
               darkMode ? "bg-stone-900/40 border-stone-900" : "bg-stone-100 border-stone-200"
             }`}>
               <button
                 id="tab-dashboard"
                 onClick={() => setActiveTab("dashboard")}
-                className={`cursor-pointer flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                className={`cursor-pointer flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
                   activeTab === "dashboard"
                     ? darkMode
                       ? "bg-stone-800 text-white border border-stone-700 shadow-sm"
@@ -352,7 +371,7 @@ export default function App() {
               <button
                 id="tab-sheets"
                 onClick={() => setActiveTab("sheets")}
-                className={`cursor-pointer flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                className={`cursor-pointer flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
                   activeTab === "sheets"
                     ? darkMode
                       ? "bg-stone-800 text-white border border-stone-700 shadow-sm"
@@ -365,9 +384,24 @@ export default function App() {
               </button>
 
               <button
+                id="tab-pilares"
+                onClick={() => setActiveTab("pilares")}
+                className={`cursor-pointer flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                  activeTab === "pilares"
+                    ? darkMode
+                      ? "bg-stone-800 text-white border border-stone-700 shadow-sm"
+                      : "bg-white text-stone-900 border border-stone-250 shadow-sm"
+                    : "text-stone-500 hover:text-stone-750"
+                }`}
+              >
+                <Target className="w-3.5 h-3.5" />
+                <span>Mis Pilares</span>
+              </button>
+
+              <button
                 id="tab-ia"
                 onClick={() => setActiveTab("ia")}
-                className={`cursor-pointer flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                className={`cursor-pointer flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
                   activeTab === "ia"
                     ? darkMode
                       ? "bg-stone-800 text-white border border-stone-700 shadow-sm"
@@ -379,11 +413,25 @@ export default function App() {
                 <span>Auditoría IA</span>
               </button>
 
+              <button
+                id="tab-perfil"
+                onClick={() => setActiveTab("perfil")}
+                className={`cursor-pointer flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                  activeTab === "perfil"
+                    ? darkMode
+                      ? "bg-stone-800 text-white border border-stone-700 shadow-sm"
+                      : "bg-white text-stone-900 border border-stone-250 shadow-sm"
+                    : "text-stone-500 hover:text-stone-750"
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Mi Perfil</span>
+              </button>
 
               <button
                 id="tab-workspace"
                 onClick={() => setActiveTab("workspace")}
-                className={`cursor-pointer flex-1 inline-flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                className={`cursor-pointer flex-1 min-w-[120px] inline-flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
                   activeTab === "workspace"
                     ? darkMode
                       ? "bg-stone-800 text-white border border-stone-700 shadow-sm"
@@ -411,7 +459,10 @@ export default function App() {
                   setDeudas={setDeudas}
                   setMetas={setMetas}
                   setEventos={setEventos}
+                  micrometas={micrometas}
+                  setMicrometas={setMicrometas}
                   activeUser={activeUser}
+                  currency={currency}
                 />
               )}
 
@@ -441,9 +492,39 @@ export default function App() {
                   deudas={deudas} 
                   metas={metas} 
                   eventos={eventos} 
+                  currency={currency}
                 />
               )}
 
+              {activeTab === "pilares" && (
+                <PilaresTab 
+                  darkMode={darkMode}
+                  activeUser={activeUser}
+                  metas={metas}
+                  setMetas={setMetas}
+                  currency={currency}
+                  pilares={pilares}
+                  setPilares={setPilares}
+                  correlacionesPilares={correlacionesPilares}
+                  setCorrelacionesPilares={setCorrelacionesPilares}
+                  micrometas={micrometas}
+                  setMicrometas={setMicrometas}
+                  deudas={deudas}
+                  setDeudas={setDeudas}
+                  setEgresos={setEgresos}
+                />
+              )}
+
+              {activeTab === "perfil" && (
+                <ProfileTab 
+                  darkMode={darkMode}
+                  activeUser={activeUser}
+                  onProfileUpdate={(updatedUser) => {
+                    setActiveUser(updatedUser);
+                    localStorage.setItem("pilar5_active_user", JSON.stringify(updatedUser));
+                  }}
+                />
+              )}
 
               {activeTab === "workspace" && (
                 <WorkspaceSyncTab 
@@ -455,6 +536,7 @@ export default function App() {
                   deudas={deudas}
                   metas={metas}
                   setEventos={setEventos}
+                  googleClientId={googleClientId}
                 />
               )}
             </section>

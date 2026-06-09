@@ -21,6 +21,7 @@ interface GeminiAuditTabProps {
   deudas: Deuda[];
   metas: MetaPilar[];
   eventos: AgendaEvento[];
+  currency: string;
 }
 
 export default function GeminiAuditTab({ 
@@ -30,7 +31,8 @@ export default function GeminiAuditTab({
   egresos, 
   deudas, 
   metas,
-  eventos
+  eventos,
+  currency
 }: GeminiAuditTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<"audit" | "optimize">("audit");
   const [loading, setLoading] = useState(false);
@@ -45,7 +47,7 @@ export default function GeminiAuditTab({
       const response = await fetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activeUser, ingresos, egresos, deudas, metas, eventos }),
+        body: JSON.stringify({ activeUser, ingresos, egresos, deudas, metas, eventos, currency }),
       });
       if (!response.ok) {
         throw new Error("Error en el servidor al generar diagnóstico");
@@ -70,7 +72,7 @@ export default function GeminiAuditTab({
       const response = await fetch("/api/optimize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingresos, deudas, egresos }),
+        body: JSON.stringify({ ingresos, deudas, egresos, currency }),
       });
       if (!response.ok) {
         throw new Error("Error en el servidor al optimizar deudas");

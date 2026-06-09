@@ -114,6 +114,7 @@ export const INITIAL_DEUDAS: Deuda[] = [
     Fecha_Corte: 1,
     Fecha_Limite_Pago: 1,
     Tasa_Interes_Anual: 0,
+    Pilar: CategoriaPilar.ECONOMICO,
     Balance_Total_Pendiente: 0,
     Pago_Minimo_Mensual: 0
   },
@@ -133,6 +134,7 @@ export const INITIAL_DEUDAS: Deuda[] = [
     Fecha_Corte: 15,
     Fecha_Limite_Pago: 5,
     Tasa_Interes_Anual: 48.5,
+    Pilar: CategoriaPilar.ECONOMICO,
     Balance_Total_Pendiente: 4200.00,
     Pago_Minimo_Mensual: 180.00
   },
@@ -152,10 +154,10 @@ export const INITIAL_DEUDAS: Deuda[] = [
     Fecha_Corte: 12,
     Fecha_Limite_Pago: 2,
     Tasa_Interes_Anual: 42.0,
+    Pilar: CategoriaPilar.ECONOMICO,
     Balance_Total_Pendiente: 1900.00,
     Pago_Minimo_Mensual: 95.00
   },
-
   // --- BEATRIZ PERALTA ---
   {
     ID_Usuario: "user-beatriz-peralta-22222",
@@ -173,6 +175,7 @@ export const INITIAL_DEUDAS: Deuda[] = [
     Fecha_Corte: 1,
     Fecha_Limite_Pago: 1,
     Tasa_Interes_Anual: 0,
+    Pilar: CategoriaPilar.ECONOMICO,
     Balance_Total_Pendiente: 0,
     Pago_Minimo_Mensual: 0
   },
@@ -192,6 +195,7 @@ export const INITIAL_DEUDAS: Deuda[] = [
     Fecha_Corte: 8,
     Fecha_Limite_Pago: 28,
     Tasa_Interes_Anual: 39.9,
+    Pilar: CategoriaPilar.ECONOMICO,
     Balance_Total_Pendiente: 1500.00,
     Pago_Minimo_Mensual: 80.00
   }

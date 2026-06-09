@@ -29,6 +29,7 @@ interface WorkspaceSyncTabProps {
   deudas: Deuda[];
   metas: MetaPilar[];
   setEventos: React.Dispatch<React.SetStateAction<AgendaEvento[]>>;
+  googleClientId: string;
 }
 
 interface GoogleDriveFile {
@@ -55,14 +56,13 @@ export default function WorkspaceSyncTab({
   egresos,
   deudas,
   metas,
-  setEventos
+  setEventos,
+  googleClientId
 }: WorkspaceSyncTabProps) {
   // Sync state
   const [accessToken, setAccessToken] = useState<string>(() => {
     return localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`) || "";
   });
-  const [tokenInput, setTokenInput] = useState<string>("");
-  const [showTokenForm, setShowTokenForm] = useState<boolean>(false);
   const [isConnected, setIsConnected] = useState<boolean>(() => {
     return !!localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
   });
@@ -94,19 +94,12 @@ export default function WorkspaceSyncTab({
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const [googleClientId, setGoogleClientId] = useState<string>(() => {
-    return localStorage.getItem("pilar5_g_client_id") || "";
-  });
-  const [showConfigId, setShowConfigId] = useState<boolean>(false);
-
   const handleGoogleOAuthDirect = () => {
     const clientId = googleClientId.trim();
     if (!clientId) {
-      alert("Por favor, introduce tu Google Client ID en el panel de configuración.");
-      setShowConfigId(true);
+      alert("Google Client ID no está configurado en el servidor. Por favor, agrégalo al archivo .env (GOOGLE_CLIENT_ID).");
       return;
     }
-    localStorage.setItem("pilar5_g_client_id", clientId);
 
     const redirectUri = window.location.origin + "/";
     const scope = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile email openid";
@@ -148,65 +141,7 @@ export default function WorkspaceSyncTab({
     }
   }, [isConnected, accessToken]);
 
-  // Connect Google simulating/with real token
-  const handleConnectSimulated = () => {
-    setIsConnected(true);
-    setGoogleUser({
-      name: `${activeUser.Nombre_Usuario} (Sync)`,
-      email: activeUser.Correo_Google || `${activeUser.Nombre_Usuario.toLowerCase().replace(/\s+/g, "")}@gmail.com`,
-      picture: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80"
-    });
-    setSyncStatus("Conexión de simulación establecida correctamente.");
-    setSyncError(null);
-  };
 
-  const handleConnectWithToken = async (tokenToUse?: string) => {
-    const finalToken = tokenToUse || tokenInput.trim();
-    if (!finalToken) {
-      setSyncError("Por favor ingresa un token de acceso válido.");
-      return;
-    }
-
-    setLoadingCalendar(true);
-    setSyncError(null);
-    setSyncStatus("Autenticando token con Google APIs...");
-
-    try {
-      // Fetch user profile info from Google to validate the token
-      const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-        headers: { Authorization: `Bearer ${finalToken}` }
-      });
-
-      if (!res.ok) {
-        throw new Error("El token de acceso no es válido o ya expiró.");
-      }
-
-      const info = await res.json();
-      setAccessToken(finalToken);
-      setIsConnected(true);
-      setGoogleUser({
-        name: info.name || "Usuario de Google",
-        email: info.email || activeUser.Correo_Google,
-        picture: info.picture
-      });
-      setSyncStatus(`¡Excelente! Conectado como ${info.email}`);
-      setTokenInput("");
-      setShowTokenForm(false);
-
-      // Async fetch list
-      setTimeout(() => {
-        fetchGoogleDriveFiles(finalToken);
-        fetchGoogleCalendarEvents(finalToken);
-      }, 100);
-
-    } catch (err: any) {
-      console.error(err);
-      setSyncError(err.message || "Error al conectar con Google APIs.");
-      setSyncStatus(null);
-    } finally {
-      setLoadingCalendar(false);
-    }
-  };
 
   const handleDisconnect = () => {
     if (window.confirm("¿Seguro que deseas desconectar tu cuenta de Google Workspace del SaaS?")) {
@@ -722,67 +657,12 @@ SaaS Ecosistema 5 Pilares - Automatización Inteligente con Google Workspace & G
                   className="py-1.5 px-3.5 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold tracking-wide transition-all cursor-pointer shadow-md shadow-teal-500/15 flex items-center gap-1.5"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Conectar Google (OAuth Real)</span>
-                </button>
-
-                {/* Dummy Simulator */}
-                <button
-                  onClick={handleConnectSimulated}
-                  className="py-1.5 px-3.5 rounded-xl border border-stone-300 dark:border-stone-850 hover:bg-stone-100 dark:hover:bg-stone-900 text-stone-600 dark:text-stone-300 text-xs font-semibold tracking-wide transition-all cursor-pointer"
-                >
-                  Simulación Rápida (Dummy)
-                </button>
-
-                {/* Token / Dev Mode */}
-                <button
-                  onClick={() => setShowTokenForm(!showTokenForm)}
-                  className={`py-1.5 px-3.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                    showTokenForm
-                      ? "bg-stone-800 border-stone-700 text-white"
-                      : darkMode ? "bg-stone-950 border-stone-850 text-stone-300" : "bg-stone-100 border-stone-200 text-stone-600"
-                  }`}
-                >
-                  Modo Token / Dev
+                  <span>Conectar Google Workspace</span>
                 </button>
               </div>
             )}
           </div>
         </div>
-
-        {/* Client ID settings panel when not connected */}
-        {!isConnected && (
-          <div className="mt-4 border-t pt-4 border-stone-200 dark:border-stone-900">
-            <button
-              type="button"
-              onClick={() => setShowConfigId(!showConfigId)}
-              className="text-[10px] text-teal-500 font-semibold hover:underline block text-left cursor-pointer"
-            >
-              {showConfigId ? "Ocultar ajustes de Google Client ID" : "⚙️ Configurar Google Client ID para conexión real"}
-            </button>
-
-            {showConfigId && (
-              <div className={`mt-3 p-4 rounded-2xl border text-left max-w-xl ${
-                darkMode ? "bg-stone-950/65 border-stone-850" : "bg-stone-50 border-stone-200"
-              } space-y-2`}>
-                <label className="text-[9px] font-bold uppercase tracking-wider text-stone-500 block">
-                  Google OAuth Client ID
-                </label>
-                <input
-                  type="text"
-                  placeholder="Pega aquí tu .apps.googleusercontent.com Client ID"
-                  value={googleClientId}
-                  onChange={(e) => setGoogleClientId(e.target.value)}
-                  className={`w-full text-[11px] px-3 py-2 rounded-xl border focus:outline-none ${
-                    darkMode ? "bg-stone-900 border-stone-850 text-white" : "bg-white border-stone-250 text-stone-900"
-                  }`}
-                />
-                <p className="text-[9px] text-stone-500 leading-normal">
-                  💡 <b>Instrucciones:</b> Ve a Google Cloud Console, crea un cliente OAuth Web con la URI de redirección autorizada: <code>{window.location.origin}/</code> y pega el Client ID aquí. Al hacer clic en "Conectar Google (OAuth Real)", se te redirigirá a tu cuenta real.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Feedback Messages */}
         {syncStatus && (
@@ -798,44 +678,7 @@ SaaS Ecosistema 5 Pilares - Automatización Inteligente con Google Workspace & G
           </div>
         )}
 
-        {/* Dev Token Form Drawer */}
-        {showTokenForm && !isConnected && (
-          <div className={`mt-5 p-4 rounded-2xl border ${
-            darkMode ? "bg-stone-950/60 border-stone-800" : "bg-stone-50 border-stone-250"
-          } space-y-3`}>
-            <div className="flex items-center gap-2 mb-1">
-              <Lock className="w-4 h-4 text-amber-500" />
-              <h4 className={`text-xs font-bold uppercase tracking-wider ${darkMode ? "text-stone-300" : "text-stone-755"}`}>
-                Credencial Directa OAuth Google APIs (Integración Real)
-              </h4>
-            </div>
-            <p className="text-[11px] text-stone-500 leading-normal">
-              Dado que los frames integrados en sandboxes restringen ventanas emergentes de terceros, puedes pegar un Google Access Token generado para interactuar de forma real con tus archivos de Google Drive y eventos de Calendar.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                placeholder="Ingresar ya_29... Google Access Token"
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
-                className={`flex-1 text-xs px-3.5 py-2 rounded-xl focus:outline-none focus:ring-1 border ${
-                  darkMode 
-                    ? "bg-stone-900 border-stone-800 focus:ring-teal-500/40 text-white placeholder-stone-600" 
-                    : "bg-white border-stone-200 focus:ring-teal-600 placeholder-stone-400"
-                }`}
-              />
-              <button
-                onClick={() => handleConnectWithToken()}
-                className="py-2 px-4 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold cursor-pointer transition-all shadow-md"
-              >
-                Vincular Token Real
-              </button>
-            </div>
-            <p className="text-[10px] text-stone-500">
-              💡 Para obtener un token rápido de desarrollo puedes abrir la consola de <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-teal-500 underline flex-inline items-center gap-0.5">OAuth Playground <ExternalLink className="w-2.5 h-2.5 inline" /></a>, seleccionar los scopes de Drive y Calendar y hacer el Token Exchange.
-            </p>
-          </div>
-        )}
+
 
         {/* Logged in User Badge */}
         {isConnected && googleUser && (
@@ -873,16 +716,16 @@ SaaS Ecosistema 5 Pilares - Automatización Inteligente con Google Workspace & G
         }`}>
           <ShieldAlert className="w-12 h-12 text-stone-600 mb-4 animate-bounce" />
           <h3 className={`font-semibold text-sm mb-1 ${darkMode ? "text-stone-300" : "text-stone-700"}`}>
-            Conexión Segura Requerida
+            Conexión Workspace Requerida
           </h3>
           <p className="text-xs text-stone-500 max-w-sm mb-6 leading-relaxed">
-            Para poder utilizar y sincronizar tu diario con Google Drive y Google Calendar necesitas autorizar tus credenciales presionando sobre el botón de Conexión Rápida o proveyendo tu token.
+            Para poder utilizar y sincronizar tu diario con Google Drive y Google Calendar necesitas autorizar tus credenciales vinculando tu cuenta de Google Workspace.
           </p>
           <button
-            onClick={handleConnectSimulated}
+            onClick={handleGoogleOAuthDirect}
             className="py-2.5 px-6 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold transition-all shadow-lg cursor-pointer"
           >
-            Vincular Entorno Google Workspace
+            Conectar Google Workspace
           </button>
         </div>
       ) : (

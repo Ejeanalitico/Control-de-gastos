@@ -92,6 +92,7 @@ export interface Deuda {
   Fecha_Corte: number; // Día del mes: DD
   Fecha_Limite_Pago: number; // Día del mes: DD
   Tasa_Interes_Anual: number; // percentage value e.g. 45
+  Pilar: CategoriaPilar;
   // Backward compatibility fields
   Balance_Total_Pendiente: number; 
   Pago_Minimo_Mensual: number;
@@ -121,11 +122,54 @@ export enum EstadoMeta {
 export interface MetaPilar {
   ID_Usuario: string; // Foreign Key
   ID_Meta: string;
-  Pilar: CategoriaPilar;
+  Pilar: string; // Dynamic Pilar ID or static CategoriaPilar string
   Meta_SMART: string;
   Indicador_Exito: string;
   Estado: EstadoMeta;
   Presupuesto_Asignado: number;
+  Fecha_Meta?: string; // YYYY-MM-DD
+  Sincronizar_Calendario?: number; // 0 or 1
+  ID_Evento_Calendario?: string | null;
+}
+
+export interface Pilar {
+  ID_Pilar: string;
+  ID_Usuario: string;
+  Nombre: string;
+  ID_Padre: string | null;
+  Color?: string;
+}
+
+export interface CorrelacionPilar {
+  ID_Correlacion: string;
+  ID_Usuario: string;
+  ID_Origen: string;
+  ID_Destino: string;
+}
+
+export interface Micrometa {
+  ID_Micrometa: string;
+  ID_Usuario: string;
+  ID_Meta: string;
+  Titulo: string;
+  Estado: "Pendiente" | "Completada" | "Cancelada";
+  Genera_Gasto: number; // 0 or 1
+  Monto_Gasto: number;
+  Gasto_Pendiente: number; // 0 or 1
+  ID_Tarjeta_Gasto?: string | null;
+  Fecha_Planificada?: string; // YYYY-MM-DD
+  Sincronizar_Calendario?: number; // 0 or 1
+  ID_Evento_Calendario?: string | null;
+  Correlaciones?: string[]; // Array of connected Pilar IDs
+  Recurrencia?: string | null;
+  ID_Padre_Recurrente?: string | null;
+}
+
+export interface CorrelacionMicrometa {
+  ID_Correlacion: string;
+  ID_Usuario: string;
+  ID_Micrometa: string;
+  ID_Pilar: string;
 }
 
 // Representing TABLA E: Registro de Actividades y Agenda (Conexión Dual con Egresos)
@@ -149,5 +193,11 @@ export interface AgendaEvento {
   Tipo_Evento: "Corte de Tarjeta" | "Límite de Pago" | "Hito de Meta" | "Bloque Académico" | "Sesión Mentoría" | "Evaluación Mínima"; // UI Type
   Color: "red" | "orange" | "blue" | "green" | "purple" | "indigo";
   Alerta_Descalce: boolean;
+  Gasto_Pendiente?: boolean;
+  Monto_Gasto?: number;
+  ID_Tarjeta_Gasto?: string | null;
+  Tipo_Gasto?: TipoGasto;
+  Recurrencia?: string | null;
+  ID_Padre_Recurrente?: string | null;
 }
 

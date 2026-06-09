@@ -15,23 +15,22 @@ interface AuthPortalProps {
   usuarios: Usuario[];
   onLoginSuccess: (userId: string, userObj: Usuario) => void;
   onRegisterSuccess: (newUser: Usuario) => void;
+  googleClientId: string;
 }
 
 export default function AuthPortal({
   darkMode,
   onLoginSuccess,
-  onRegisterSuccess
+  onRegisterSuccess,
+  googleClientId
 }: AuthPortalProps) {
   const [isSignUp, setIsSignUp] = useState<boolean>(false);
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
   const [name, setName] = useState<string>("");
   const [oauthLoading, setOauthLoading] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>("");
-  const [googleClientId, setGoogleClientId] = useState<string>(() => {
-    return localStorage.getItem("pilar5_g_client_id") || "";
-  });
-  const [showConfigId, setShowConfigId] = useState<boolean>(false);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +45,14 @@ export default function AuthPortal({
       if (isSignUp) {
         if (!name) {
           setFormError("Por favor ingresa tu nombre completo para el registro.");
+          return;
+        }
+        if (password.length < 6) {
+          setFormError("La contraseña debe tener al menos 6 caracteres.");
+          return;
+        }
+        if (password !== confirmPassword) {
+          setFormError("Las contraseñas no coinciden.");
           return;
         }
 
@@ -83,13 +90,9 @@ export default function AuthPortal({
   const handleGoogleOAuthSimulate = () => {
     const clientId = googleClientId.trim();
     if (!clientId) {
-      setFormError("Por favor, introduce tu Google Client ID en el formulario de abajo para realizar la conexión real con tu calendario.");
-      setShowConfigId(true);
+      setFormError("Google Client ID no está configurado en el servidor. Por favor, agrégalo a tu archivo .env en la raíz del proyecto (GOOGLE_CLIENT_ID).");
       return;
     }
-
-    // Save Client ID for persistence
-    localStorage.setItem("pilar5_g_client_id", clientId);
 
     setOauthLoading(true);
     setFormError("");
@@ -187,7 +190,7 @@ export default function AuthPortal({
                     className={`w-full text-xs pl-10 pr-4 py-3 rounded-2xl border focus:outline-none transition-all ${
                       darkMode 
                         ? "bg-stone-950 border-stone-850 text-white focus:border-teal-500/30" 
-                        : "bg-stone-50 border-stone-200 text-stone-900 focus:border-teal-600/30"
+                        : "bg-white border-stone-300 text-stone-900 focus:border-teal-600/30"
                     }`}
                   />
                 </div>
@@ -212,7 +215,7 @@ export default function AuthPortal({
                   className={`w-full text-xs pl-10 pr-4 py-3 rounded-2xl border focus:outline-none transition-all ${
                     darkMode 
                       ? "bg-stone-950 border-stone-850 text-white focus:border-teal-500/30" 
-                      : "bg-stone-50 border-stone-200 text-stone-900 focus:border-teal-600/30"
+                      : "bg-white border-stone-300 text-stone-900 focus:border-teal-600/30"
                   }`}
                 />
               </div>
@@ -236,11 +239,37 @@ export default function AuthPortal({
                   className={`w-full text-xs pl-10 pr-4 py-3 rounded-2xl border focus:outline-none transition-all ${
                     darkMode 
                       ? "bg-stone-950 border-stone-850 text-white focus:border-teal-500/30" 
-                      : "bg-stone-50 border-stone-200 text-stone-900 focus:border-teal-600/30"
+                      : "bg-white border-stone-300 text-stone-900 focus:border-teal-600/30"
                   }`}
                 />
               </div>
             </div>
+
+            {isSignUp && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold tracking-wider uppercase text-stone-500">
+                  Confirmar Contraseña
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-3 text-stone-500">
+                    <Lock className="w-4 h-4" />
+                  </span>
+                  <input
+                    id="auth-confirm-password"
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className={`w-full text-xs pl-10 pr-4 py-3 rounded-2xl border focus:outline-none transition-all ${
+                      darkMode 
+                        ? "bg-stone-950 border-stone-850 text-white focus:border-teal-500/30" 
+                        : "bg-white border-stone-300 text-stone-900 focus:border-teal-600/30"
+                    }`}
+                  />
+                </div>
+              </div>
+            )}
 
             <button
               id="auth-submit"
@@ -271,38 +300,6 @@ export default function AuthPortal({
               <span>Entrar con tu cuenta de Google</span>
             </button>
 
-            {/* Config Google Client ID section */}
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={() => setShowConfigId(!showConfigId)}
-                className="text-[10px] text-teal-500 font-semibold hover:underline block text-center w-full cursor-pointer"
-              >
-                {showConfigId ? "ocultar ajustes de Google Client ID" : "configurar Google Client ID para conexión real"}
-              </button>
-
-              {showConfigId && (
-                <div className={`mt-2 p-3.5 rounded-2xl border text-left ${
-                  darkMode ? "bg-stone-950/65 border-stone-850" : "bg-stone-50 border-stone-200"
-                } space-y-2`}>
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-stone-500 block">
-                    Google OAuth Client ID
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Pega aquí tu .apps.googleusercontent.com Client ID"
-                    value={googleClientId}
-                    onChange={(e) => setGoogleClientId(e.target.value)}
-                    className={`w-full text-[11px] px-3 py-2 rounded-xl border focus:outline-none ${
-                      darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-white border-stone-250 text-stone-900"
-                    }`}
-                  />
-                  <p className="text-[9px] text-stone-500 leading-normal">
-                    💡 <b>Instrucciones:</b> Ve a Google Cloud Console, crea un cliente OAuth Web con la URI de redirección autorizada: <code>{window.location.origin}/</code> y pega el Client ID aquí.
-                  </p>
-                </div>
-              )}
-            </div>
           </form>
         )}
 

@@ -76,7 +76,8 @@ export default function SheetsSimulatorTab({
     Pago_Para_No_Generar_Intereses: "",
     Fecha_Corte: "15",
     Fecha_Limite_Pago: "5",
-    Tasa_Interes_Anual: "45"
+    Tasa_Interes_Anual: "45",
+    Pilar: CategoriaPilar.ECONOMICO
   });
 
   const [egresoForm, setEgresoForm] = useState({
@@ -167,6 +168,7 @@ export default function SheetsSimulatorTab({
       Fecha_Corte: parseInt(deudaForm.Fecha_Corte) || 15,
       Fecha_Limite_Pago: parseInt(deudaForm.Fecha_Limite_Pago) || 5,
       Tasa_Interes_Anual: parseFloat(deudaForm.Tasa_Interes_Anual) || 0,
+      Pilar: deudaForm.Pilar || CategoriaPilar.ECONOMICO,
       Balance_Total_Pendiente: parseDeuda,
       Pago_Minimo_Mensual: parseFloat(deudaForm.Pago_Minimo) || 0
     };
@@ -189,7 +191,8 @@ export default function SheetsSimulatorTab({
           Pago_Para_No_Generar_Intereses: "",
           Fecha_Corte: "15",
           Fecha_Limite_Pago: "5",
-          Tasa_Interes_Anual: "45"
+          Tasa_Interes_Anual: "45",
+          Pilar: CategoriaPilar.ECONOMICO
         });
         setShowAddForm(false);
       }
@@ -423,42 +426,86 @@ export default function SheetsSimulatorTab({
               <form onSubmit={handleAddIngreso} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-bold text-stone-500">Fecha</label>
-                  <input type="date" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={ingresoForm.Fecha} onChange={(e)=>setIngresoForm({...ingresoForm, Fecha: e.target.value})} />
+                  <input type="date" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={ingresoForm.Fecha} onChange={(e)=>setIngresoForm({...ingresoForm, Fecha: e.target.value})} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-bold text-stone-500">Concepto</label>
-                  <input type="text" placeholder="ej. Asesoría Frontend" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={ingresoForm.Concepto} onChange={(e)=>setIngresoForm({...ingresoForm, Concepto: e.target.value})} />
+                  <input type="text" placeholder="ej. Asesoría Frontend" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={ingresoForm.Concepto} onChange={(e)=>setIngresoForm({...ingresoForm, Concepto: e.target.value})} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-bold text-stone-500">Monto Neto</label>
-                  <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={ingresoForm.Monto_Neto} onChange={(e)=>setIngresoForm({...ingresoForm, Monto_Neto: e.target.value})} />
+                  <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={ingresoForm.Monto_Neto} onChange={(e)=>setIngresoForm({...ingresoForm, Monto_Neto: e.target.value})} />
                 </div>
-                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs cursor-pointer transition-all">Guardar Registro</button>
+                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-xs cursor-pointer transition-all shadow-md">Guardar Registro</button>
               </form>
             )}
 
             {activeSheet === "C" && (
-              <form onSubmit={handleAddDeuda} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase font-bold text-stone-500">Nombre de la Cuenta</label>
-                  <input type="text" placeholder="ej. Tarjeta Citi" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={deudaForm.Nombre_Tarjeta} onChange={(e)=>setDeudaForm({...deudaForm, Nombre_Tarjeta: e.target.value})} />
+              <form onSubmit={handleAddDeuda} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Nombre de la Cuenta</label>
+                    <input type="text" required placeholder="ej. Tarjeta Citi" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={deudaForm.Nombre_Tarjeta} onChange={(e)=>setDeudaForm({...deudaForm, Nombre_Tarjeta: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Tipo de Cuenta</label>
+                    <select className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={deudaForm.Tipo} onChange={(e)=>setDeudaForm({...deudaForm, Tipo: e.target.value as any})}>
+                      <option value={TipoTarjeta.CREDITO}>Crédito</option>
+                      <option value={TipoTarjeta.DEBITO}>Débito</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Línea de Crédito</label>
+                    <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={deudaForm.Limite_Credito} onChange={(e)=>setDeudaForm({...deudaForm, Limite_Credito: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Saldo Disponible</label>
+                    <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={deudaForm.Saldo_Disponible} onChange={(e)=>setDeudaForm({...deudaForm, Saldo_Disponible: e.target.value})} />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase font-bold text-stone-500">Tipo de Cuenta</label>
-                  <select className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={deudaForm.Tipo} onChange={(e)=>setDeudaForm({...deudaForm, Tipo: e.target.value as any})}>
-                    <option value={TipoTarjeta.CREDITO}>Crédito</option>
-                    <option value={TipoTarjeta.DEBITO}>Débito</option>
-                  </select>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Deuda Actual</label>
+                    <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={deudaForm.Deuda_Actual} onChange={(e)=>setDeudaForm({...deudaForm, Deuda_Actual: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Pago Mínimo</label>
+                    <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={deudaForm.Pago_Minimo} onChange={(e)=>setDeudaForm({...deudaForm, Pago_Minimo: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Pago No Generar Intereses</label>
+                    <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={deudaForm.Pago_Para_No_Generar_Intereses} onChange={(e)=>setDeudaForm({...deudaForm, Pago_Para_No_Generar_Intereses: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Tasa Interés Anual (%)</label>
+                    <input type="number" placeholder="ej. 42" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={deudaForm.Tasa_Interes_Anual} onChange={(e)=>setDeudaForm({...deudaForm, Tasa_Interes_Anual: e.target.value})} />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase font-bold text-stone-500">Línea de Crédito</label>
-                  <input type="number" placeholder="Línea de Crédito" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={deudaForm.Limite_Credito} onChange={(e)=>setDeudaForm({...deudaForm, Limite_Credito: e.target.value})} />
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Día de Corte (1-31)</label>
+                    <input type="number" placeholder="15" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={deudaForm.Fecha_Corte} onChange={(e)=>setDeudaForm({...deudaForm, Fecha_Corte: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Día Límite de Pago (1-31)</label>
+                    <input type="number" placeholder="5" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={deudaForm.Fecha_Limite_Pago} onChange={(e)=>setDeudaForm({...deudaForm, Fecha_Limite_Pago: e.target.value})} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Pilar Asociado</label>
+                    <select className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={deudaForm.Pilar} onChange={(e)=>setDeudaForm({...deudaForm, Pilar: e.target.value as any})}>
+                      <option value={CategoriaPilar.ECONOMICO}>💰 Económico</option>
+                      <option value={CategoriaPilar.SALUD}>🩺 Salud</option>
+                      <option value={CategoriaPilar.ESCOLAR}>📚 Escolar</option>
+                      <option value={CategoriaPilar.LABORAL}>💼 Laboral</option>
+                      <option value={CategoriaPilar.PERSONAL}>🍀 Personal</option>
+                      <option value={CategoriaPilar.AMOROSO}>💖 Amoroso</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase font-bold text-stone-500">Saldo Disponible</label>
-                  <input type="number" placeholder="Saldo Disponible" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={deudaForm.Saldo_Disponible} onChange={(e)=>setDeudaForm({...deudaForm, Saldo_Disponible: e.target.value})} />
-                </div>
-                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-xs cursor-pointer md:col-span-4 transition-all">Registrar Cuenta</button>
+
+                <button type="submit" className="w-full py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-xs cursor-pointer transition-all shadow-md">Registrar Cuenta o Tarjeta</button>
               </form>
             )}
 
@@ -466,15 +513,15 @@ export default function SheetsSimulatorTab({
               <form onSubmit={handleAddEgreso} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-bold text-stone-500">Fecha</label>
-                  <input type="date" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={egresoForm.Fecha} onChange={(e)=>setEgresoForm({...egresoForm, Fecha: e.target.value})} />
+                  <input type="date" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={egresoForm.Fecha} onChange={(e)=>setEgresoForm({...egresoForm, Fecha: e.target.value})} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-bold text-stone-500">Concepto</label>
-                  <input type="text" placeholder="Concepto del Gasto" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={egresoForm.Concepto} onChange={(e)=>setEgresoForm({...egresoForm, Concepto: e.target.value})} />
+                  <input type="text" placeholder="Concepto del Gasto" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={egresoForm.Concepto} onChange={(e)=>setEgresoForm({...egresoForm, Concepto: e.target.value})} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] uppercase font-bold text-stone-500">Pilar Categoria</label>
-                  <select className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={egresoForm.Categoria_Pilar} onChange={(e)=>setEgresoForm({...egresoForm, Categoria_Pilar: e.target.value as any})}>
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Pilar Categoría</label>
+                  <select className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={egresoForm.Categoria_Pilar} onChange={(e)=>setEgresoForm({...egresoForm, Categoria_Pilar: e.target.value as any})}>
                     <option value={CategoriaPilar.NECESIDAD_ESENCIAL}>Necesidades esenciales</option>
                     <option value={CategoriaPilar.SALUD}>Salud</option>
                     <option value={CategoriaPilar.ESCOLAR}>Escolar</option>
@@ -485,9 +532,9 @@ export default function SheetsSimulatorTab({
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-bold text-stone-500">Monto</label>
-                  <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={egresoForm.Monto} onChange={(e)=>setEgresoForm({...egresoForm, Monto: e.target.value})} />
+                  <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={egresoForm.Monto} onChange={(e)=>setEgresoForm({...egresoForm, Monto: e.target.value})} />
                 </div>
-                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs cursor-pointer md:col-span-4 transition-all">Insertar Gasto</button>
+                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-xs cursor-pointer md:col-span-4 transition-all shadow-md">Insertar Gasto</button>
               </form>
             )}
 
@@ -495,23 +542,23 @@ export default function SheetsSimulatorTab({
               <form onSubmit={handleAddEvento} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-bold text-stone-500">Nombre de la actividad</label>
-                  <input type="text" placeholder="ej. Gimnasio" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={eventoForm.Titulo_Actividad} onChange={(e)=>setEventoForm({...eventoForm, Titulo_Actividad: e.target.value})} />
+                  <input type="text" placeholder="ej. Gimnasio" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={eventoForm.Titulo_Actividad} onChange={(e)=>setEventoForm({...eventoForm, Titulo_Actividad: e.target.value})} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-bold text-stone-500">Pilar Asociado</label>
-                  <select className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={eventoForm.Pilar} onChange={(e)=>setEventoForm({...eventoForm, Pilar: e.target.value as any})}>
-                    <option value={CategoriaPilar.SALUD}>Salud</option>
-                    <option value={CategoriaPilar.ESCOLAR}>Escolar</option>
-                    <option value={CategoriaPilar.LABORAL}>Laboral</option>
-                    <option value={CategoriaPilar.PERSONAL}>Personal</option>
-                    <option value={CategoriaPilar.AMOROSO}>Amoroso</option>
+                  <select className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={eventoForm.Pilar} onChange={(e)=>setEventoForm({...eventoForm, Pilar: e.target.value as any})}>
+                    <option value={CategoriaPilar.SALUD}>🩺 Salud</option>
+                    <option value={CategoriaPilar.ESCOLAR}>📚 Escolar</option>
+                    <option value={CategoriaPilar.LABORAL}>💼 Laboral</option>
+                    <option value={CategoriaPilar.PERSONAL}>🍀 Personal</option>
+                    <option value={CategoriaPilar.AMOROSO}>💖 Amoroso</option>
                   </select>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-bold text-stone-500">Inicio (Fecha Hora)</label>
-                  <input type="text" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none dark:bg-stone-900 dark:border-stone-800" value={eventoForm.Fecha_Hora_Inicio} onChange={(e)=>setEventoForm({...eventoForm, Fecha_Hora_Inicio: e.target.value})} />
+                  <input type="datetime-local" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={eventoForm.Fecha_Hora_Inicio} onChange={(e)=>setEventoForm({...eventoForm, Fecha_Hora_Inicio: e.target.value})} />
                 </div>
-                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs cursor-pointer transition-all">Guardar Actividad</button>
+                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-xs cursor-pointer transition-all shadow-md">Guardar Actividad</button>
               </form>
             )}
 

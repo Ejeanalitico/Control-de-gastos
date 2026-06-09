@@ -86,7 +86,7 @@ export default function App() {
   useEffect(() => {
     const detectCurrency = async () => {
       try {
-        const res = await fetch("https://ipapi.co/json/");
+        const res = await fetch("/api/detect-currency");
         if (res.ok) {
           const data = await res.json();
           if (data.currency) {
@@ -94,7 +94,7 @@ export default function App() {
           }
         }
       } catch (err) {
-        console.error("Error detecting currency by IP:", err);
+        console.error("Error detecting currency:", err);
       }
     };
     detectCurrency();
@@ -118,27 +118,15 @@ export default function App() {
       setLoadingData(true);
       try {
         // 1. Fetch real user profile from Google UserInfo endpoint
-        let info;
-        if (accessToken.startsWith("mock_google_token_")) {
-          const parts = accessToken.replace("mock_google_token_", "").split("__");
-          const email = decodeURIComponent(parts[0] || "xavier.garcia.vp@gmail.com");
-          const name = decodeURIComponent(parts[1] || "Javier García");
-          info = {
-            email,
-            name,
-            picture: "https://lh3.googleusercontent.com/a/default-user=s96-c"
-          };
-        } else {
-          const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-            headers: { Authorization: `Bearer ${accessToken}` }
-          });
+        const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
 
-          if (!userInfoRes.ok) {
-            throw new Error("El token de acceso de Google no es válido o expiró.");
-          }
-
-          info = await userInfoRes.json();
+        if (!userInfoRes.ok) {
+          throw new Error("El token de acceso de Google no es válido o expiró.");
         }
+
+        const info = await userInfoRes.json();
 
         const email = info.email.trim().toLowerCase();
         const name = info.name || "Usuario Google";

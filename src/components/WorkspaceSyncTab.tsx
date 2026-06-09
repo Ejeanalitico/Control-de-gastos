@@ -16,7 +16,8 @@ import {
   Loader2,
   Lock,
   User,
-  ExternalLink
+  ExternalLink,
+  Sparkles
 } from "lucide-react";
 import { Usuario, AgendaEvento, Ingreso, Egreso, Deuda, MetaPilar, CategoriaPilar } from "../types";
 
@@ -94,16 +95,13 @@ export default function WorkspaceSyncTab({
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // Simulated Google Auth States
-  const [showMockGoogleModal, setShowMockGoogleModal] = useState<boolean>(false);
-  const [customMockEmail, setCustomMockEmail] = useState<string>("");
-  const [customMockName, setCustomMockName] = useState<string>("");
-  const [showCustomInput, setShowCustomInput] = useState<boolean>(false);
+  // Real Google Auth States
+  const [showConfigAlert, setShowConfigAlert] = useState<boolean>(false);
 
   const handleGoogleOAuthDirect = () => {
     const clientId = googleClientId.trim();
     if (!clientId || clientId.includes("example.apps.googleusercontent.com")) {
-      setShowMockGoogleModal(true);
+      setShowConfigAlert(true);
       return;
     }
 
@@ -166,11 +164,6 @@ export default function WorkspaceSyncTab({
     const token = customToken || accessToken;
     if (!token) return;
 
-    if (token.startsWith("mock_google_token_")) {
-      fillMockCalendarEvents();
-      return;
-    }
-
     setLoadingCalendar(true);
     try {
       const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=15", {
@@ -187,54 +180,14 @@ export default function WorkspaceSyncTab({
           end: it.end
         })));
       } else {
-        // Fallback or empty if not real token
-        if (!accessToken || accessToken.startsWith("mock_google_token_")) fillMockCalendarEvents();
+        setGoogleEvents([]);
       }
     } catch (e) {
       console.error(e);
-      fillMockCalendarEvents();
+      setGoogleEvents([]);
     } finally {
       setLoadingCalendar(false);
     }
-  };
-
-  const fillMockCalendarEvents = () => {
-    // Include local activities with calendar event ID
-    const localSyncs = eventos
-      .filter(e => e.ID_Evento && (e.ID_Evento.startsWith("mock-") || e.ID_Actividad.startsWith("imported-")))
-      .map(e => ({
-        id: e.ID_Evento,
-        summary: e.Titulo_Actividad || e.Titulo,
-        description: e.Descripcion_Detallada || e.Descripcion,
-        start: { dateTime: e.Fecha_Hora_Inicio ? `${e.Fecha_Hora_Inicio}:00Z` : `${e.Fecha}T09:00:00Z` },
-        end: { dateTime: e.Fecha_Hora_Fin ? `${e.Fecha_Hora_Fin}:00Z` : `${e.Fecha}T10:00:00Z` }
-      }));
-
-    // Simulated placeholder events if no real access token is inputted
-    setGoogleEvents([
-      ...localSyncs,
-      {
-        id: "g-mock-1",
-        summary: "📅 Sesión de Mentoría Financiera (Google Calendar)",
-        description: "Revisar los gastos del pilar Amoroso con el consultor.",
-        start: { dateTime: "2026-06-08T10:00:00Z" },
-        end: { dateTime: "2026-06-08T11:00:00Z" }
-      },
-      {
-        id: "g-mock-2",
-        summary: "🏋️ Récord de Gimnasio - Salir a Correr",
-        description: "Meta vinculada al Pilar Salud en el SaaS.",
-        start: { dateTime: "2026-06-09T08:00:00Z" },
-        end: { dateTime: "2026-06-09T09:00:00Z" }
-      },
-      {
-        id: "g-mock-3",
-        summary: "💡 Evaluación de Exclusiones de Impuesto",
-        description: "Recomendado por el optimizador avalancha de deudas.",
-        start: { dateTime: "2026-06-11T12:00:00Z" },
-        end: { dateTime: "2026-06-11T13:30:00Z" }
-      }
-    ]);
   };
 
   // Push local event to Google Calendar (Real API + backup simulation)
@@ -244,11 +197,8 @@ export default function WorkspaceSyncTab({
     );
     if (!confirmed) return;
 
-    if (!accessToken || accessToken.startsWith("mock_google_token_")) {
-      // Simulate
-      setSyncStatus(`Agendado exitosamente en simulación: "${ev.Titulo_Actividad}"`);
-      // Add and highlight
-      alert(`🎉 Sincronizado (Simulado): El evento "${ev.Titulo_Actividad}" ahora vive en su Google Calendar con ID: mock-evt-${ev.ID_Actividad}`);
+    if (!accessToken) {
+      alert("Debes conectar tu cuenta de Google Workspace primero.");
       return;
     }
 
@@ -346,19 +296,8 @@ export default function WorkspaceSyncTab({
     e.preventDefault();
     if (!newCalendarTitle) return;
 
-    if (!accessToken || accessToken.startsWith("mock_google_token_")) {
-      // Simulation template
-      const mockNew: GoogleCalendarEvent = {
-        id: `mock-evt-${Date.now()}`,
-        summary: `📅 (Simulado) ${newCalendarTitle}`,
-        description: newCalendarDesc,
-        start: { dateTime: `${newCalendarDate}T10:00:00Z` },
-        end: { dateTime: `${newCalendarDate}T11:00:00Z` }
-      };
-      setGoogleEvents([mockNew, ...googleEvents]);
-      setNewCalendarTitle("");
-      setNewCalendarDesc("");
-      setSyncStatus(`Evento "${newCalendarTitle}" simulado con éxito.`);
+    if (!accessToken) {
+      alert("Debes conectar tu cuenta de Google Workspace primero.");
       return;
     }
 
@@ -397,10 +336,7 @@ export default function WorkspaceSyncTab({
   // --- GOOGLE DRIVE FILE SYSTEM ACTIONS ---
   const fetchGoogleDriveFiles = async (customToken?: string) => {
     const token = customToken || accessToken;
-    if (token.startsWith("mock_google_token_")) {
-      fillMockDriveFiles();
-      return;
-    }
+    if (!token) return;
 
     setLoadingDrive(true);
     try {
@@ -411,40 +347,14 @@ export default function WorkspaceSyncTab({
         const data = await res.json();
         setDriveFiles(data.files || []);
       } else {
-        if (!accessToken || accessToken.startsWith("mock_google_token_")) fillMockDriveFiles();
+        setDriveFiles([]);
       }
     } catch (e) {
       console.error(e);
-      fillMockDriveFiles();
+      setDriveFiles([]);
     } finally {
       setLoadingDrive(false);
     }
-  };
-
-  const fillMockDriveFiles = () => {
-    setDriveFiles([
-      {
-        id: "g-file-1",
-        name: "📂 Resumen_Dashboard_Mensual_Mendoza.pdf",
-        mimeType: "application/pdf",
-        createdTime: "2026-06-01T15:20:00Z",
-        size: "124800"
-      },
-      {
-        id: "g-file-2",
-        name: "📝 Metas_SMART_Pilar_Escolar_Certificacion.md",
-        mimeType: "text/markdown",
-        createdTime: "2026-06-05T09:44:00Z",
-        size: "4500"
-      },
-      {
-        id: "g-file-3",
-        name: "📊 Libro_Gastos_Hormiga_Avalancha.xlsx",
-        mimeType: "application/vnd.google-apps.spreadsheet",
-        createdTime: "2026-06-07T11:05:00Z",
-        size: "18900"
-      }
-    ]);
   };
 
   // Export 5 Pilares Report to Google Drive in beautiful Markdown format
@@ -482,18 +392,8 @@ ${eventos.map((e, idx) => `- [${e.Fecha}] ${e.Titulo_Actividad} (${e.Pilar}) - R
 SaaS Ecosistema 5 Pilares - Automatización Inteligente con Google Workspace & Gemini Cloud AI.
 `;
 
-    if (!accessToken || accessToken.startsWith("mock_google_token_")) {
-      // Simulate
-      const simulatedFile: GoogleDriveFile = {
-        id: `g-sim-file-${Date.now()}`,
-        name: `📝 5_Pilares_SaaS_Report_${activeUser.Nombre_Usuario.replace(/\s+/g, "_")}.md`,
-        mimeType: "text/markdown",
-        createdTime: new Date().toISOString(),
-        size: reportContent.length.toString()
-      };
-      setDriveFiles([simulatedFile, ...driveFiles]);
-      setSyncStatus("Archivo de diagnóstico creado de modo simulado en Google Drive.");
-      alert(`🎉 ¡Reporte Exportado (MOCK)! Generado archivo "${simulatedFile.name}" en tu Google Drive de muestra.\n\nContenido:\n${reportContent.slice(0, 200)}...`);
+    if (!accessToken) {
+      alert("Debes conectar tu cuenta de Google Workspace primero.");
       return;
     }
 
@@ -555,19 +455,8 @@ SaaS Ecosistema 5 Pilares - Automatización Inteligente con Google Workspace & G
     );
     if (!confirmed) return;
 
-    if (!accessToken || accessToken.startsWith("mock_google_token_")) {
-      // Simulation
-      const simulated: GoogleDriveFile = {
-        id: `g-sim-file-${Date.now()}`,
-        name: newDriveFileName,
-        mimeType: "text/plain",
-        createdTime: new Date().toISOString(),
-        size: newDriveFileContent.length.toString()
-      };
-      setDriveFiles([simulated, ...driveFiles]);
-      setNewDriveFileName("");
-      setNewDriveFileContent("");
-      setSyncStatus(`Subido simulado: "${newDriveFileName}"`);
+    if (!accessToken) {
+      alert("Debes conectar tu cuenta de Google Workspace primero.");
       return;
     }
 
@@ -618,10 +507,8 @@ SaaS Ecosistema 5 Pilares - Automatización Inteligente con Google Workspace & G
     );
     if (!confirmed) return;
 
-    if (!accessToken || accessToken.startsWith("mock_google_token_")) {
-      // Simulate delete locally
-      setDriveFiles(driveFiles.filter(f => f.id !== fileId));
-      setSyncStatus(`Archivo "${fileName}" eliminado de la simulación.`);
+    if (!accessToken) {
+      alert("Debes conectar tu cuenta de Google Workspace primero.");
       return;
     }
 
@@ -1058,163 +945,74 @@ SaaS Ecosistema 5 Pilares - Automatización Inteligente con Google Workspace & G
         </div>
       </div>
 
-      {/* GORGEOUS SIMULATED GOOGLE ACCOUNT SELECTOR MODAL FOR WORKSPACE TAB */}
-      {showMockGoogleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md transition-all">
-          <div className={`w-full max-w-md p-6 rounded-[2rem] border shadow-2xl transition-all ${
-            darkMode ? "bg-stone-900 border-stone-850 text-white shadow-stone-950/60" : "bg-white border-stone-200 text-stone-850 shadow-stone-200/60"
+      {/* REAL GOOGLE OAUTH CONFIGURATION INSTRUCTION MODAL */}
+      {showConfigAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 transition-all">
+          <div className={`w-full max-w-lg p-6 md:p-8 rounded-[2.5rem] border shadow-2xl transition-all ${
+            darkMode ? "bg-stone-900 border-stone-850 text-white shadow-stone-950/80" : "bg-white border-stone-200 text-stone-850 shadow-stone-200/80"
           }`}>
-            <div className="flex flex-col items-center mb-6">
-              {/* Google colorful G logo */}
-              <div className="w-12 h-12 flex items-center justify-center bg-white rounded-full shadow-md mb-3 border border-stone-100">
-                <svg className="w-6 h-6" viewBox="0 0 24 24">
-                  <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114-3.483 0-6.312-2.83-6.312-6.314s2.829-6.313 6.312-6.313c1.558 0 2.977.568 4.076 1.503l3.078-3.077C18.99 2.378 15.82 1 12.24 1 6.033 1 12.24 1 12.24s5.033 11.24 11.24 11.24c6.476 0 11.164-4.549 11.164-11.393 0-.773-.082-1.343-.2-1.802H12.24z" />
-                </svg>
+            <div className="flex items-center gap-3 mb-5 border-b pb-4 border-stone-200 dark:border-stone-800">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+                <Sparkles className="w-6 h-6 animate-pulse" />
               </div>
-              <h2 className={`text-lg font-bold tracking-tight font-sans ${darkMode ? "text-white" : "text-stone-900"}`}>Google</h2>
-              <p className="text-xs text-stone-500 mt-1 font-sans text-center">
-                Elige una cuenta para sincronizar con 5 Pilares
+              <div>
+                <h3 className="text-base font-bold">Configuración de Google OAuth Requerida</h3>
+                <p className="text-[10px] text-stone-500 font-bold uppercase tracking-wider mt-0.5">Conexión Profesional Real</p>
+              </div>
+            </div>
+
+            <div className="text-xs space-y-4 leading-relaxed max-h-[350px] overflow-y-auto pr-1">
+              <p>
+                Para habilitar una conexión auténtica con tu cuenta de Google y habilitar la sincronización en tiempo real con Google Calendar, debes configurar tu propio <strong>Client ID de Google</strong>.
               </p>
+              
+              <div className="space-y-2.5">
+                <p className="font-semibold text-teal-500">Pasos para la configuración:</p>
+                <ol className="list-decimal pl-4 space-y-2">
+                  <li>
+                    Ingresa a la consola de desarrolladores: <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-teal-455 hover:underline">Google Cloud Console</a>.
+                  </li>
+                  <li>
+                    Crea un proyecto (ej. <em>"Control 5 Pilares"</em>).
+                  </li>
+                  <li>
+                    Configura la <strong>Pantalla de consentimiento de OAuth</strong> (tipo Externo, agrega tu correo).
+                  </li>
+                  <li>
+                    Ve a <strong>Credenciales</strong> &gt; <strong>Crear credenciales</strong> &gt; <strong>ID de cliente de OAuth</strong>.
+                  </li>
+                  <li>
+                    Elige tipo de aplicación: <strong>Aplicación web</strong>.
+                  </li>
+                  <li>
+                    En <strong>Orígenes de JavaScript autorizados</strong> agrega: <code className="bg-stone-950 text-emerald-450 px-1.5 py-0.5 rounded font-mono">http://localhost:3000</code>.
+                  </li>
+                  <li>
+                    En <strong>URIs de redireccionamiento autorizados</strong> agrega exactamente: <code className="bg-stone-950 text-emerald-450 px-1.5 py-0.5 rounded font-mono">http://localhost:3000/</code> (incluyendo la barra diagonal al final).
+                  </li>
+                  <li>
+                    Copia el <strong>ID de cliente</strong> generado.
+                  </li>
+                </ol>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-stone-950 text-stone-300 font-mono text-[10px] border border-stone-850 space-y-2 select-text">
+                <p className="text-stone-500"># Edita el archivo .env de tu proyecto y pega tu Client ID:</p>
+                <p>GOOGLE_CLIENT_ID="<span className="text-teal-400">TU_CLIENT_ID_GENERADO.apps.googleusercontent.com</span>"</p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-400 text-[11px] font-medium animate-pulse">
+                💡 <strong>Una vez guardado:</strong> Guarda el archivo <code>.env</code>. El servidor se reiniciará automáticamente. Recarga esta página para iniciar la sesión real con Google.
+              </div>
             </div>
 
-            <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
-              {/* Profile button 1: Javier García */}
+            <div className="mt-6 pt-4 border-t border-stone-200 dark:border-stone-800 flex justify-end">
               <button
                 type="button"
-                onClick={() => {
-                  const email = "xavier.garcia.vp@gmail.com";
-                  const name = "Javier García";
-                  setShowMockGoogleModal(false);
-                  const mockToken = `mock_google_token_${encodeURIComponent(email)}__${encodeURIComponent(name)}`;
-                  window.location.href = `/#access_token=${mockToken}`;
-                  window.location.reload();
-                }}
-                className={`w-full p-3.5 rounded-2xl border flex items-center gap-3 text-left transition-all cursor-pointer ${
-                  darkMode 
-                    ? "bg-stone-950/40 border-stone-850 hover:bg-stone-900 hover:border-teal-500/30 text-white" 
-                    : "bg-stone-50 border-stone-200 hover:bg-stone-100 hover:border-teal-500/30 text-stone-900"
-                }`}
+                onClick={() => setShowConfigAlert(false)}
+                className="py-2.5 px-6 rounded-2xl text-xs font-semibold bg-teal-500 hover:bg-teal-600 text-white transition-all cursor-pointer shadow-lg shadow-teal-500/10"
               >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-500 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                  JG
-                </div>
-                <div className="flex-1 truncate">
-                  <p className="text-xs font-bold font-sans">Javier García</p>
-                  <p className="text-[10px] text-stone-500 font-mono mt-0.5 font-sans">xavier.garcia.vp@gmail.com</p>
-                </div>
-              </button>
-
-              {/* Profile button 2: Test User */}
-              <button
-                type="button"
-                onClick={() => {
-                  const email = "test@example.com";
-                  const name = "Test User";
-                  setShowMockGoogleModal(false);
-                  const mockToken = `mock_google_token_${encodeURIComponent(email)}__${encodeURIComponent(name)}`;
-                  window.location.href = `/#access_token=${mockToken}`;
-                  window.location.reload();
-                }}
-                className={`w-full p-3.5 rounded-2xl border flex items-center gap-3 text-left transition-all cursor-pointer ${
-                  darkMode 
-                    ? "bg-stone-950/40 border-stone-850 hover:bg-stone-900 hover:border-teal-500/30 text-white" 
-                    : "bg-stone-50 border-stone-200 hover:bg-stone-100 hover:border-teal-500/30 text-stone-900"
-                }`}
-              >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                  TU
-                </div>
-                <div className="flex-1 truncate">
-                  <p className="text-xs font-bold font-sans">Test User</p>
-                  <p className="text-[10px] text-stone-500 font-mono mt-0.5 font-sans">test@example.com</p>
-                </div>
-              </button>
-
-              {/* Custom login form */}
-              {showCustomInput ? (
-                <div className={`p-4 rounded-2xl border space-y-3 ${
-                  darkMode ? "bg-stone-950/40 border-stone-850" : "bg-stone-50 border-stone-200"
-                }`}>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-stone-500">Nombre Completo</label>
-                    <input
-                      type="text"
-                      placeholder="ej. Juan Pérez"
-                      value={customMockName}
-                      onChange={(e) => setCustomMockName(e.target.value)}
-                      className={`w-full text-xs px-3 py-2 rounded-xl border focus:outline-none focus:border-teal-500 ${
-                        darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-white border-stone-300 text-stone-900"
-                      }`}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-stone-500">Correo Google</label>
-                    <input
-                      type="email"
-                      placeholder="ej. juan@gmail.com"
-                      value={customMockEmail}
-                      onChange={(e) => setCustomMockEmail(e.target.value)}
-                      className={`w-full text-xs px-3 py-2 rounded-xl border focus:outline-none focus:border-teal-500 ${
-                        darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-white border-stone-300 text-stone-900"
-                      }`}
-                    />
-                  </div>
-                  <div className="flex gap-2 justify-end pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowCustomInput(false)}
-                      className="py-1 px-3 text-[10px] rounded-lg font-bold border border-stone-350 hover:bg-stone-150 dark:hover:bg-stone-800 transition-all cursor-pointer"
-                    >
-                      Atrás
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const email = customMockEmail.trim().toLowerCase();
-                        const name = customMockName.trim() || "Usuario Google";
-                        if (!email) {
-                          alert("Por favor ingresa un correo electrónico.");
-                          return;
-                        }
-                        setShowMockGoogleModal(false);
-                        const mockToken = `mock_google_token_${encodeURIComponent(email)}__${encodeURIComponent(name)}`;
-                        window.location.href = `/#access_token=${mockToken}`;
-                        window.location.reload();
-                      }}
-                      className="py-1 px-3 text-[10px] rounded-lg font-bold bg-teal-500 hover:bg-teal-600 text-white transition-all cursor-pointer shadow-sm shadow-teal-500/10"
-                    >
-                      Sincronizar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowCustomInput(true)}
-                  className={`w-full p-3.5 rounded-2xl border flex items-center gap-3 text-left transition-all cursor-pointer ${
-                    darkMode 
-                      ? "bg-stone-950/20 border-stone-850 hover:bg-stone-900 hover:border-teal-500/30 text-white" 
-                      : "bg-white border-stone-205 hover:bg-stone-50 hover:border-teal-500/30 text-stone-900"
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-full border border-dashed border-stone-400 text-stone-550 flex items-center justify-center font-bold text-sm shadow-sm">
-                    +
-                  </div>
-                  <div className="flex-1 truncate">
-                    <p className="text-xs font-bold font-sans">Usar otra cuenta</p>
-                    <p className="text-[10px] text-stone-500 mt-0.5 font-sans">Sincronizar con otro perfil de Google</p>
-                  </div>
-                </button>
-              )}
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2 border-t pt-4 border-stone-100 dark:border-stone-850">
-              <button
-                type="button"
-                onClick={() => setShowMockGoogleModal(false)}
-                className="py-1.5 px-4 rounded-xl border border-stone-300 dark:border-stone-800 text-stone-500 hover:bg-stone-50 dark:hover:bg-stone-950 text-xs font-semibold transition-all cursor-pointer"
-              >
-                Cancelar
+                Entendido
               </button>
             </div>
           </div>

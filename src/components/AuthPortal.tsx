@@ -32,11 +32,8 @@ export default function AuthPortal({
   const [oauthLoading, setOauthLoading] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>("");
 
-  // Simulated Google Auth States
-  const [showMockGoogleModal, setShowMockGoogleModal] = useState<boolean>(false);
-  const [customMockEmail, setCustomMockEmail] = useState<string>("");
-  const [customMockName, setCustomMockName] = useState<string>("");
-  const [showCustomInput, setShowCustomInput] = useState<boolean>(false);
+  // Real Google Auth States
+  const [showConfigAlert, setShowConfigAlert] = useState<boolean>(false);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,8 +93,8 @@ export default function AuthPortal({
   const handleGoogleOAuthSimulate = () => {
     const clientId = googleClientId.trim();
     if (!clientId || clientId.includes("example.apps.googleusercontent.com")) {
-      // Trigger the gorgeous simulated account selector immediately
-      setShowMockGoogleModal(true);
+      // Show professional OAuth setup guide instead of simulated popups
+      setShowConfigAlert(true);
       return;
     }
 
@@ -315,166 +312,74 @@ export default function AuthPortal({
         </p>
       </div>
 
-      {/* GORGEOUS SIMULATED GOOGLE ACCOUNT SELECTOR MODAL */}
-      {showMockGoogleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md transition-all">
-          <div className={`w-full max-w-md p-6 rounded-[2rem] border shadow-2xl transition-all ${
-            darkMode ? "bg-stone-900 border-stone-850 text-white shadow-stone-950/60" : "bg-white border-stone-200 text-stone-850 shadow-stone-200/60"
+      {/* REAL GOOGLE OAUTH CONFIGURATION INSTRUCTION MODAL */}
+      {showConfigAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 transition-all">
+          <div className={`w-full max-w-lg p-6 md:p-8 rounded-[2.5rem] border shadow-2xl transition-all ${
+            darkMode ? "bg-stone-900 border-stone-800 text-white shadow-stone-950/80" : "bg-white border-stone-200 text-stone-900 shadow-stone-200/80"
           }`}>
-            <div className="flex flex-col items-center mb-6">
-              {/* Google colorful G logo */}
-              <div className="w-12 h-12 flex items-center justify-center bg-white rounded-full shadow-md mb-3 border border-stone-100">
-                <svg className="w-6 h-6" viewBox="0 0 24 24">
-                  <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114-3.483 0-6.312-2.83-6.312-6.314s2.829-6.313 6.312-6.313c1.558 0 2.977.568 4.076 1.503l3.078-3.077C18.99 2.378 15.82 1 12.24 1 6.033 1 12.24 1 12.24s5.033 11.24 11.24 11.24c6.476 0 11.164-4.549 11.164-11.393 0-.773-.082-1.343-.2-1.802H12.24z" />
-                </svg>
+            <div className="flex items-center gap-3 mb-5 border-b pb-4 border-stone-200 dark:border-stone-800">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+                <Sparkles className="w-6 h-6 animate-pulse" />
               </div>
-              <h2 className={`text-lg font-bold tracking-tight font-sans ${darkMode ? "text-white" : "text-stone-900"}`}>Google</h2>
-              <p className="text-xs text-stone-500 mt-1 font-sans text-center">
-                Elige una cuenta para continuar a 5 Pilares
+              <div>
+                <h3 className="text-base font-bold">Configuración de Google OAuth Requerida</h3>
+                <p className="text-[10px] text-stone-500 font-bold uppercase tracking-wider mt-0.5">Conexión Profesional Real</p>
+              </div>
+            </div>
+
+            <div className="text-xs space-y-4 leading-relaxed max-h-[350px] overflow-y-auto pr-1">
+              <p>
+                Para habilitar una conexión auténtica con tu cuenta de Google y habilitar la sincronización en tiempo real con Google Calendar, debes configurar tu propio <strong>Client ID de Google</strong>.
               </p>
+              
+              <div className="space-y-2.5">
+                <p className="font-semibold text-teal-500">Pasos para la configuración:</p>
+                <ol className="list-decimal pl-4 space-y-2">
+                  <li>
+                    Ingresa a la consola de desarrolladores: <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-teal-455 hover:underline">Google Cloud Console</a>.
+                  </li>
+                  <li>
+                    Crea un proyecto (ej. <em>"Control 5 Pilares"</em>).
+                  </li>
+                  <li>
+                    Configura la <strong>Pantalla de consentimiento de OAuth</strong> (tipo Externo, agrega tu correo).
+                  </li>
+                  <li>
+                    Ve a <strong>Credenciales</strong> &gt; <strong>Crear credenciales</strong> &gt; <strong>ID de cliente de OAuth</strong>.
+                  </li>
+                  <li>
+                    Elige tipo de aplicación: <strong>Aplicación web</strong>.
+                  </li>
+                  <li>
+                    En <strong>Orígenes de JavaScript autorizados</strong> agrega: <code className="bg-stone-950 text-emerald-450 px-1.5 py-0.5 rounded font-mono">http://localhost:3000</code>.
+                  </li>
+                  <li>
+                    En <strong>URIs de redireccionamiento autorizados</strong> agrega exactamente: <code className="bg-stone-950 text-emerald-450 px-1.5 py-0.5 rounded font-mono">http://localhost:3000/</code> (incluyendo la barra diagonal al final).
+                  </li>
+                  <li>
+                    Copia el <strong>ID de cliente</strong> generado.
+                  </li>
+                </ol>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-stone-950 text-stone-300 font-mono text-[10px] border border-stone-850 space-y-2 select-text">
+                <p className="text-stone-500"># Edita el archivo .env de tu proyecto y pega tu Client ID:</p>
+                <p>GOOGLE_CLIENT_ID="<span className="text-teal-400">TU_CLIENT_ID_GENERADO.apps.googleusercontent.com</span>"</p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-400 text-[11px] font-medium animate-pulse">
+                💡 <strong>Una vez guardado:</strong> Guarda el archivo <code>.env</code>. El servidor se reiniciará automáticamente. Recarga esta página para iniciar la sesión real con Google.
+              </div>
             </div>
 
-            <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
-              {/* Profile button 1: Javier García */}
+            <div className="mt-6 pt-4 border-t border-stone-200 dark:border-stone-800 flex justify-end">
               <button
                 type="button"
-                onClick={() => {
-                  const email = "xavier.garcia.vp@gmail.com";
-                  const name = "Javier García";
-                  setShowMockGoogleModal(false);
-                  setOauthLoading(true);
-                  const mockToken = `mock_google_token_${encodeURIComponent(email)}__${encodeURIComponent(name)}`;
-                  window.location.href = `/#access_token=${mockToken}`;
-                  window.location.reload();
-                }}
-                className={`w-full p-3.5 rounded-2xl border flex items-center gap-3 text-left transition-all cursor-pointer ${
-                  darkMode 
-                    ? "bg-stone-950/40 border-stone-850 hover:bg-stone-900 hover:border-teal-500/30 text-white" 
-                    : "bg-stone-50 border-stone-200 hover:bg-stone-100 hover:border-teal-500/30 text-stone-900"
-                }`}
+                onClick={() => setShowConfigAlert(false)}
+                className="py-2.5 px-6 rounded-2xl text-xs font-semibold bg-teal-500 hover:bg-teal-600 text-white transition-all cursor-pointer shadow-lg shadow-teal-500/10"
               >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-500 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                  JG
-                </div>
-                <div className="flex-1 truncate">
-                  <p className="text-xs font-bold font-sans">Javier García</p>
-                  <p className="text-[10px] text-stone-500 font-mono mt-0.5">xavier.garcia.vp@gmail.com</p>
-                </div>
-              </button>
-
-              {/* Profile button 2: Test User */}
-              <button
-                type="button"
-                onClick={() => {
-                  const email = "test@example.com";
-                  const name = "Test User";
-                  setShowMockGoogleModal(false);
-                  setOauthLoading(true);
-                  const mockToken = `mock_google_token_${encodeURIComponent(email)}__${encodeURIComponent(name)}`;
-                  window.location.href = `/#access_token=${mockToken}`;
-                  window.location.reload();
-                }}
-                className={`w-full p-3.5 rounded-2xl border flex items-center gap-3 text-left transition-all cursor-pointer ${
-                  darkMode 
-                    ? "bg-stone-950/40 border-stone-850 hover:bg-stone-900 hover:border-teal-500/30 text-white" 
-                    : "bg-stone-50 border-stone-200 hover:bg-stone-100 hover:border-teal-500/30 text-stone-900"
-                }`}
-              >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                  TU
-                </div>
-                <div className="flex-1 truncate">
-                  <p className="text-xs font-bold font-sans">Test User</p>
-                  <p className="text-[10px] text-stone-500 font-mono mt-0.5">test@example.com</p>
-                </div>
-              </button>
-
-              {/* Custom login form */}
-              {showCustomInput ? (
-                <div className={`p-4 rounded-2xl border space-y-3 ${
-                  darkMode ? "bg-stone-950/40 border-stone-850" : "bg-stone-50 border-stone-200"
-                }`}>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-stone-500">Nombre Completo</label>
-                    <input
-                      type="text"
-                      placeholder="ej. Juan Pérez"
-                      value={customMockName}
-                      onChange={(e) => setCustomMockName(e.target.value)}
-                      className={`w-full text-xs px-3 py-2 rounded-xl border focus:outline-none focus:border-teal-500 ${
-                        darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-white border-stone-300 text-stone-900"
-                      }`}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-stone-500">Correo Google</label>
-                    <input
-                      type="email"
-                      placeholder="ej. juan@gmail.com"
-                      value={customMockEmail}
-                      onChange={(e) => setCustomMockEmail(e.target.value)}
-                      className={`w-full text-xs px-3 py-2 rounded-xl border focus:outline-none focus:border-teal-500 ${
-                        darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-white border-stone-300 text-stone-900"
-                      }`}
-                    />
-                  </div>
-                  <div className="flex gap-2 justify-end pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowCustomInput(false)}
-                      className="py-1 px-3 text-[10px] rounded-lg font-bold border border-stone-350 hover:bg-stone-150 dark:hover:bg-stone-800 transition-all cursor-pointer"
-                    >
-                      Atrás
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const email = customMockEmail.trim().toLowerCase();
-                        const name = customMockName.trim() || "Usuario Google";
-                        if (!email) {
-                          alert("Por favor ingresa un correo electrónico.");
-                          return;
-                        }
-                        setShowMockGoogleModal(false);
-                        setOauthLoading(true);
-                        const mockToken = `mock_google_token_${encodeURIComponent(email)}__${encodeURIComponent(name)}`;
-                        window.location.href = `/#access_token=${mockToken}`;
-                        window.location.reload();
-                      }}
-                      className="py-1 px-3 text-[10px] rounded-lg font-bold bg-teal-500 hover:bg-teal-600 text-white transition-all cursor-pointer shadow-sm shadow-teal-500/10"
-                    >
-                      Continuar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowCustomInput(true)}
-                  className={`w-full p-3.5 rounded-2xl border flex items-center gap-3 text-left transition-all cursor-pointer ${
-                    darkMode 
-                      ? "bg-stone-950/20 border-stone-850 hover:bg-stone-900 hover:border-teal-500/30 text-white" 
-                      : "bg-white border-stone-205 hover:bg-stone-50 hover:border-teal-500/30 text-stone-900"
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-full border border-dashed border-stone-400 text-stone-550 flex items-center justify-center font-bold text-sm shadow-sm">
-                    +
-                  </div>
-                  <div className="flex-1 truncate">
-                    <p className="text-xs font-bold font-sans">Usar otra cuenta</p>
-                    <p className="text-[10px] text-stone-500 mt-0.5 font-sans">Acceder con otro perfil de Google</p>
-                  </div>
-                </button>
-              )}
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2 border-t pt-4 border-stone-100 dark:border-stone-850">
-              <button
-                type="button"
-                onClick={() => setShowMockGoogleModal(false)}
-                className="py-1.5 px-4 rounded-xl border border-stone-300 dark:border-stone-800 text-stone-500 hover:bg-stone-50 dark:hover:bg-stone-950 text-xs font-semibold transition-all cursor-pointer"
-              >
-                Cancelar
+                Entendido
               </button>
             </div>
           </div>

@@ -60,6 +60,22 @@ async function startServer() {
     });
   });
 
+  app.get("/api/detect-currency", async (req, res) => {
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 2000);
+      const gRes = await fetch("https://ipapi.co/json/", { signal: controller.signal });
+      clearTimeout(id);
+      if (gRes.ok) {
+        const data: any = await gRes.json();
+        return res.json({ currency: data.currency || "USD" });
+      }
+    } catch (err) {
+      // Silently ignore rate limits/CORS errors on server, default to USD
+    }
+    res.json({ currency: "USD" });
+  });
+
   // === AUTHENTICATION ENDPOINTS ===
 
   app.post("/api/auth/register", async (req, res) => {
@@ -70,7 +86,10 @@ async function startServer() {
       }
 
       const cleanEmail = email.trim().toLowerCase();
-      const existing = await queryGet("SELECT * FROM usuarios WHERE Gmail_Sincronizado = ?", [cleanEmail]);
+      const existing = await queryGet(
+        "SELECT * FROM usuarios WHERE LOWER(TRIM(Gmail_Sincronizado)) = LOWER(TRIM(?)) OR LOWER(TRIM(Correo_Google)) = LOWER(TRIM(?))",
+        [cleanEmail, cleanEmail]
+      );
       if (existing) {
         return res.status(400).json({ error: "El correo ya está registrado." });
       }
@@ -137,7 +156,10 @@ async function startServer() {
       }
 
       const cleanEmail = email.trim().toLowerCase();
-      const user: any = await queryGet("SELECT * FROM usuarios WHERE Gmail_Sincronizado = ?", [cleanEmail]);
+      const user: any = await queryGet(
+        "SELECT * FROM usuarios WHERE LOWER(TRIM(Gmail_Sincronizado)) = LOWER(TRIM(?)) OR LOWER(TRIM(Correo_Google)) = LOWER(TRIM(?))",
+        [cleanEmail, cleanEmail]
+      );
 
       if (!user) {
         return res.status(400).json({ error: "Las credenciales no coinciden." });
@@ -165,32 +187,28 @@ async function startServer() {
         return res.status(400).json({ error: "Token de Google requerido." });
       }
 
-      let info: any;
-      if (token.startsWith("mock_google_token_")) {
-        const parts = token.replace("mock_google_token_", "").split("__");
-        const email = decodeURIComponent(parts[0] || "xavier.garcia.vp@gmail.com");
-        const name = decodeURIComponent(parts[1] || "Javier García");
-        info = {
-          email,
-          name,
-          picture: "https://lh3.googleusercontent.com/a/default-user=s96-c"
-        };
-      } else {
-        const gRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+      const gRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-        if (!gRes.ok) {
-          return res.status(400).json({ error: "El token de Google no es válido o ha expirado." });
-        }
-
-        info = await gRes.json();
+      if (!gRes.ok) {
+        return res.status(400).json({ error: "El token de Google no es válido o ha expirado." });
       }
 
+      const info = await gRes.json();
+      if (!info.email) {
+        return res.status(400).json({ error: "El token de Google no contiene una dirección de correo válida." });
+      }
+
+      console.log("[DEBUG] Google User Info Email:", info.email);
       const email = info.email.trim().toLowerCase();
       const name = info.name || "Usuario Google";
 
-      let user: any = await queryGet("SELECT * FROM usuarios WHERE Gmail_Sincronizado = ?", [email]);
+      let user: any = await queryGet(
+        "SELECT * FROM usuarios WHERE LOWER(TRIM(Gmail_Sincronizado)) = LOWER(TRIM(?)) OR LOWER(TRIM(Correo_Google)) = LOWER(TRIM(?))",
+        [email, email]
+      );
+      console.log("[DEBUG] user found in DB:", user);
 
       if (!user) {
         const userId = "user-" + Math.random().toString(36).substring(2, 11) + "-" + Date.now();

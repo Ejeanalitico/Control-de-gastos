@@ -633,25 +633,8 @@ SaaS Ecosistema 5 Pilares - Automatización Inteligente con Google Workspace & G
         )}
       </div>
 
-      {!isConnected ? (
-        <div className={`p-10 text-center rounded-3xl border border-dashed flex flex-col items-center justify-center ${
-          darkMode ? "bg-stone-900/20 border-stone-800" : "bg-stone-100/45 border-stone-200"
-        }`}>
-          <ShieldAlert className="w-12 h-12 text-stone-600 mb-4 animate-bounce" />
-          <h3 className={`font-semibold text-sm mb-1 ${darkMode ? "text-stone-300" : "text-stone-700"}`}>
-            Conexión Workspace Requerida
-          </h3>
-          <p className="text-xs text-stone-500 max-w-sm mb-6 leading-relaxed">
-            Para poder utilizar y sincronizar tu diario con Google Drive y Google Calendar necesitas autorizar tus credenciales vinculando tu cuenta de Google Workspace.
-          </p>
-          <button
-            onClick={handleGoogleOAuthDirect}
-            className="py-2.5 px-6 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold transition-all shadow-lg cursor-pointer"
-          >
-            Conectar Google Workspace
-          </button>
-        </div>
-      ) : (
+
+      {!isConnected ? null : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* GOOGLE CALENDAR CONTROLLER PANEL */}

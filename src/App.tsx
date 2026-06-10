@@ -200,6 +200,28 @@ export default function App() {
     handleGoogleCallback();
   }, []);
 
+  // === GOOGLE TOKEN VALIDATION ON STARTUP ===
+  // Validates any stored Google token silently on login to prevent 401 console spam
+  useEffect(() => {
+    if (!activeUserId) return;
+    const validateGoogleToken = async () => {
+      const storedToken = localStorage.getItem(`pilar5_g_token_${activeUserId}`);
+      if (!storedToken) return;
+      try {
+        const res = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${storedToken}`);
+        if (!res.ok) {
+          // Token expired or invalid — clear silently before components try to use it
+          localStorage.removeItem(`pilar5_g_token_${activeUserId}`);
+          localStorage.removeItem(`pilar5_g_connected_${activeUserId}`);
+          localStorage.removeItem(`pilar5_g_user_${activeUserId}`);
+        }
+      } catch {
+        // Silently ignore network errors during validation
+      }
+    };
+    validateGoogleToken();
+  }, [activeUserId]);
+
   // === DB FETCH ON AUTH STATE CHANGE ===
   useEffect(() => {
     const fetchUserData = async () => {

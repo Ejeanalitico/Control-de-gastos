@@ -214,9 +214,13 @@ export default function WorkspaceSyncTab({
           start: it.start,
           end: it.end
         })));
-      } else if (res.status === 401 || res.status === 403) {
+      } else if (res.status === 401) {
         // Token expired — auto-disconnect silently
         clearExpiredGoogleToken();
+      } else if (res.status === 403) {
+        const errData = await res.json().catch(() => ({}));
+        const errMsg = errData.error?.message || "Acceso prohibido (403). Verifica que la API de Google Calendar esté activa en Google Cloud Console y hayas marcado la casilla de permisos al iniciar sesión.";
+        setSyncError(`Error Google Calendar: ${errMsg}`);
       } else {
         setGoogleEvents([]);
       }
@@ -391,9 +395,13 @@ export default function WorkspaceSyncTab({
       if (res.ok) {
         const data = await res.json();
         setDriveFiles(data.files || []);
-      } else if (res.status === 401 || res.status === 403) {
+      } else if (res.status === 401) {
         // Token expired — auto-disconnect silently
         clearExpiredGoogleToken();
+      } else if (res.status === 403) {
+        const errData = await res.json().catch(() => ({}));
+        const errMsg = errData.error?.message || "Acceso prohibido (403). Verifica que la API de Google Drive esté activa en Google Cloud Console y hayas marcado la casilla de permisos al iniciar sesión.";
+        setSyncError(`Error Google Drive: ${errMsg}`);
       } else {
         setDriveFiles([]);
       }

@@ -34,6 +34,23 @@ import {
 } from "lucide-react";
 
 export default function App() {
+  // === SYNCHRONOUS GOOGLE TOKEN EXPIRY VALIDATION ===
+  // Clean up expired Google tokens immediately on initial render before children read it
+  const activeUserIdForSyncCheck = localStorage.getItem("pilar5_active_user_id") || "";
+  if (activeUserIdForSyncCheck) {
+    const storedToken = localStorage.getItem(`pilar5_g_token_${activeUserIdForSyncCheck}`);
+    const expiresAt = localStorage.getItem(`pilar5_g_expires_at_${activeUserIdForSyncCheck}`);
+    if (storedToken) {
+      const isExpired = expiresAt ? Date.now() > parseInt(expiresAt) : true;
+      if (isExpired) {
+        localStorage.removeItem(`pilar5_g_token_${activeUserIdForSyncCheck}`);
+        localStorage.removeItem(`pilar5_g_connected_${activeUserIdForSyncCheck}`);
+        localStorage.removeItem(`pilar5_g_user_${activeUserIdForSyncCheck}`);
+        localStorage.removeItem(`pilar5_g_expires_at_${activeUserIdForSyncCheck}`);
+      }
+    }
+  }
+
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem("pilar5_theme");
     return saved ? saved === "dark" : true;
@@ -114,6 +131,7 @@ export default function App() {
 
       const params = new URLSearchParams(hash.substring(1));
       const accessToken = params.get("access_token");
+      const expiresIn = params.get("expires_in") || "3600";
       if (!accessToken) return;
 
       setLoadingData(true);
@@ -140,6 +158,20 @@ export default function App() {
         let userObj;
         if (existingUserId && existingUserStr) {
           userObj = JSON.parse(existingUserStr);
+          // Call backend to link Google account to the logged-in user profile
+          const linkRes = await fetch("/api/auth/google/link", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: existingUserId, token: accessToken })
+          });
+
+          if (!linkRes.ok) {
+            const errData = await linkRes.json();
+            throw new Error(errData.error || "No se pudo vincular tu cuenta de Google.");
+          }
+
+          const linkData = await linkRes.json();
+          userObj = linkData.user; // updated user detail with linked Google email
         } else {
           // Perform backend registration or login using Google Access Token directly
           const authRes = await fetch("/api/auth/google", {
@@ -157,9 +189,11 @@ export default function App() {
           userObj = authData.user;
         }
 
-        // 3. Connect and persist Google token & status locally
+        // 3. Connect and persist Google token, status & expiry locally
+        const expiresAt = Date.now() + parseInt(expiresIn) * 1000;
         localStorage.setItem(`pilar5_g_connected_${userObj.ID_Usuario}`, "true");
         localStorage.setItem(`pilar5_g_token_${userObj.ID_Usuario}`, accessToken);
+        localStorage.setItem(`pilar5_g_expires_at_${userObj.ID_Usuario}`, expiresAt.toString());
         localStorage.setItem(`pilar5_g_user_${userObj.ID_Usuario}`, JSON.stringify({
           name: info.name,
           email: info.email,
@@ -199,28 +233,6 @@ export default function App() {
 
     handleGoogleCallback();
   }, []);
-
-  // === GOOGLE TOKEN VALIDATION ON STARTUP ===
-  // Validates any stored Google token silently on login to prevent 401 console spam
-  useEffect(() => {
-    if (!activeUserId) return;
-    const validateGoogleToken = async () => {
-      const storedToken = localStorage.getItem(`pilar5_g_token_${activeUserId}`);
-      if (!storedToken) return;
-      try {
-        const res = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${storedToken}`);
-        if (!res.ok) {
-          // Token expired or invalid — clear silently before components try to use it
-          localStorage.removeItem(`pilar5_g_token_${activeUserId}`);
-          localStorage.removeItem(`pilar5_g_connected_${activeUserId}`);
-          localStorage.removeItem(`pilar5_g_user_${activeUserId}`);
-        }
-      } catch {
-        // Silently ignore network errors during validation
-      }
-    };
-    validateGoogleToken();
-  }, [activeUserId]);
 
   // === DB FETCH ON AUTH STATE CHANGE ===
   useEffect(() => {

@@ -98,7 +98,7 @@ export default function WorkspaceSyncTab({
   const handleGoogleOAuthDirect = () => {
     const clientId = googleClientId.trim();
     const redirectUri = window.location.origin + "/";
-    const scope = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile email openid";
+    const scope = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile email openid https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file";
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=consent`;
 
     window.location.href = authUrl;
@@ -139,8 +139,17 @@ export default function WorkspaceSyncTab({
 
 
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     if (window.confirm("¿Seguro que deseas desconectar tu cuenta de Google Workspace del SaaS?")) {
+      try {
+        await fetch("/api/auth/google/unlink", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: activeUser.ID_Usuario })
+        });
+      } catch (err) {
+        console.error("Error unlinking Google from server:", err);
+      }
       setAccessToken("");
       setIsConnected(false);
       setGoogleUser(null);
@@ -148,11 +157,24 @@ export default function WorkspaceSyncTab({
       setGoogleEvents([]);
       setSyncStatus("Desconectado de Google Workspace.");
       setSyncError(null);
+      localStorage.removeItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
+      localStorage.removeItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+      localStorage.removeItem(`pilar5_g_user_${activeUser.ID_Usuario}`);
+      localStorage.removeItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
     }
   };
 
   // Helper to clear stale/expired Google tokens silently
-  const clearExpiredGoogleToken = () => {
+  const clearExpiredGoogleToken = async () => {
+    try {
+      await fetch("/api/auth/google/unlink", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: activeUser.ID_Usuario })
+      });
+    } catch (err) {
+      console.error("Error unlinking expired Google from server:", err);
+    }
     setAccessToken("");
     setIsConnected(false);
     setGoogleUser(null);
@@ -161,11 +183,20 @@ export default function WorkspaceSyncTab({
     localStorage.removeItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
     localStorage.removeItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
     localStorage.removeItem(`pilar5_g_user_${activeUser.ID_Usuario}`);
+    localStorage.removeItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
   };
 
   // Google Calendar Integration Actions
   const fetchGoogleCalendarEvents = async (customToken?: string) => {
     const token = customToken || accessToken;
+    const expiresAt = localStorage.getItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
+    if (token) {
+      const isExpired = expiresAt ? Date.now() > parseInt(expiresAt) : true;
+      if (isExpired) {
+        clearExpiredGoogleToken();
+        return;
+      }
+    }
     if (!token) return;
 
     setLoadingCalendar(true);
@@ -342,6 +373,14 @@ export default function WorkspaceSyncTab({
   // --- GOOGLE DRIVE FILE SYSTEM ACTIONS ---
   const fetchGoogleDriveFiles = async (customToken?: string) => {
     const token = customToken || accessToken;
+    const expiresAt = localStorage.getItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
+    if (token) {
+      const isExpired = expiresAt ? Date.now() > parseInt(expiresAt) : true;
+      if (isExpired) {
+        clearExpiredGoogleToken();
+        return;
+      }
+    }
     if (!token) return;
 
     setLoadingDrive(true);

@@ -81,6 +81,29 @@ export default function DashboardTab({
   currency
 }: DashboardTabProps) {
 
+  const getValidGoogleToken = () => {
+    const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
+    const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+    const expiresAt = localStorage.getItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
+
+    if (gToken) {
+      const isExpired = expiresAt ? Date.now() > parseInt(expiresAt) : true;
+      if (isExpired) {
+        localStorage.removeItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
+        localStorage.removeItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+        localStorage.removeItem(`pilar5_g_user_${activeUser.ID_Usuario}`);
+        localStorage.removeItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
+        fetch("/api/auth/google/unlink", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: activeUser.ID_Usuario })
+        }).catch(() => {});
+        return null;
+      }
+    }
+    return isConnected === "true" ? gToken : null;
+  };
+
   // --- CALENDAR GRID STATE ---
   const [calendarDate, setCalendarDate] = useState<Date>(new Date(2026, 5, 8)); // Default to June 8, 2026 (matching sample data)
   const [selectedDateStr, setSelectedDateStr] = useState<string>("2026-06-08");
@@ -147,20 +170,11 @@ export default function DashboardTab({
   // --- GOOGLE CALENDAR SYNC EFFECT ---
   useEffect(() => {
     const fetchGoogleCalendar = async () => {
-      const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
-      const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
-      if (!gToken || !isConnected) {
+      const gToken = getValidGoogleToken();
+      if (!gToken) {
         setGoogleEvents([]);
         return;
       }
-
-      // Helper to clear expired tokens silently
-      const clearExpiredToken = () => {
-        localStorage.removeItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
-        localStorage.removeItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
-        localStorage.removeItem(`pilar5_g_user_${activeUser.ID_Usuario}`);
-        setGoogleEvents([]);
-      };
 
       setGcalLoading(true);
       try {
@@ -178,9 +192,6 @@ export default function DashboardTab({
             end: it.end?.dateTime || it.end?.date || "",
             color: "indigo"
           })));
-        } else if (res.status === 401 || res.status === 403) {
-          // Token expired or invalid — clear silently, user must re-authenticate
-          clearExpiredToken();
         } else {
           setGoogleEvents([]);
         }
@@ -395,9 +406,8 @@ export default function DashboardTab({
 
         // Push Micrometa to Google Calendar first if connected
         let googleEventId: string | null = null;
-        const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
-        const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
-        if (gToken && isConnected === "true" && selectedDateStr) {
+        const gToken = getValidGoogleToken();
+        if (gToken && selectedDateStr) {
           if (gToken.startsWith("mock_google_token_")) {
             googleEventId = "mock-mm-evt-" + Math.random().toString(36).substring(2, 9) + "-" + Date.now();
           } else {
@@ -440,7 +450,7 @@ export default function DashboardTab({
           Gasto_Pendiente: (requierePago && !isPaidNow) ? 1 : 0,
           ID_Tarjeta_Gasto: requierePago ? tarjetaId : null,
           Fecha_Planificada: selectedDateStr,
-          Sincronizar_Calendario: isConnected === "true" ? 1 : 0,
+          Sincronizar_Calendario: gToken ? 1 : 0,
           ID_Evento_Calendario: googleEventId,
           Correlaciones: [],
           Recurrencia: recurrencia !== "none" ? recurrencia : null,
@@ -468,17 +478,16 @@ export default function DashboardTab({
 
         // Google Calendar Sync in background if token exists
         let googleEventId: string | null = null;
-        const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
-        const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
-        if (gToken && isConnected === "true") {
-          if (gToken.startsWith("mock_google_token_")) {
+        const gTokenActivity = getValidGoogleToken();
+        if (gTokenActivity) {
+          if (gTokenActivity.startsWith("mock_google_token_")) {
             googleEventId = "mock-act-evt-" + Math.random().toString(36).substring(2, 9) + "-" + Date.now();
           } else {
             try {
               const syncRes = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
                 method: "POST",
                 headers: {
-                  "Authorization": `Bearer ${gToken}`,
+                  "Authorization": `Bearer ${gTokenActivity}`,
                   "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
@@ -572,10 +581,9 @@ export default function DashboardTab({
       const eventToDelete = eventos.find(ev => ev.ID_Actividad === id);
       const googleEventId = eventToDelete?.ID_Evento;
 
-      const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
-      const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+      const gToken = getValidGoogleToken();
 
-      if (googleEventId && !googleEventId.startsWith("g-") && !googleEventId.startsWith("evt-") && !googleEventId.startsWith("mock-") && gToken && isConnected === "true" && !gToken.startsWith("mock_google_token_")) {
+      if (googleEventId && !googleEventId.startsWith("g-") && !googleEventId.startsWith("evt-") && !googleEventId.startsWith("mock-") && gToken && !gToken.startsWith("mock_google_token_")) {
         try {
           await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`, {
             method: "DELETE",
@@ -711,10 +719,9 @@ export default function DashboardTab({
       };
 
       const googleEventId = eventToEdit.ID_Evento;
-      const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
-      const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+      const gToken = getValidGoogleToken();
 
-      if (googleEventId && !googleEventId.startsWith("g-") && !googleEventId.startsWith("mock-") && gToken && isConnected === "true" && !gToken.startsWith("mock_google_token_")) {
+      if (googleEventId && !googleEventId.startsWith("g-") && !googleEventId.startsWith("mock-") && gToken && !gToken.startsWith("mock_google_token_")) {
         try {
           await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`, {
             method: "PUT",

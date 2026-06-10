@@ -95,7 +95,7 @@ export default function AuthPortal({
     const clientId = googleClientId.trim();
     // Build standard implicit flow URL for Google Calendar & UserInfo profile scopes
     const redirectUri = window.location.origin + "/";
-    const scope = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile email openid";
+    const scope = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile email openid https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file";
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=consent`;
 
     // Redirect user to Google sign-in consent screen

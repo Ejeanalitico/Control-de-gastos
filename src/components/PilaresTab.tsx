@@ -65,6 +65,29 @@ export default function PilaresTab({
   setEgresos
 }: PilaresTabProps) {
   
+  const getValidGoogleToken = () => {
+    const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
+    const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+    const expiresAt = localStorage.getItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
+
+    if (gToken) {
+      const isExpired = expiresAt ? Date.now() > parseInt(expiresAt) : true;
+      if (isExpired) {
+        localStorage.removeItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
+        localStorage.removeItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+        localStorage.removeItem(`pilar5_g_user_${activeUser.ID_Usuario}`);
+        localStorage.removeItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
+        fetch("/api/auth/google/unlink", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: activeUser.ID_Usuario })
+        }).catch(() => {});
+        return null;
+      }
+    }
+    return isConnected === "true" ? gToken : null;
+  };
+
   const [selectedPilarId, setSelectedPilarId] = useState<string | null>(null);
 
   // Form States - Dynamic Pilar Creator
@@ -293,10 +316,9 @@ export default function PilaresTab({
     const parsePres = parseFloat(metaPresupuesto) || 0;
 
     let googleEventId: string | null = null;
-    const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
-    const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+    const gToken = getValidGoogleToken();
 
-    if (metaFecha && gToken && isConnected === "true") {
+    if (metaFecha && gToken) {
       if (gToken.startsWith("mock_google_token_")) {
         googleEventId = "mock-meta-evt-" + Math.random().toString(36).substring(2, 9) + "-" + Date.now();
       } else {
@@ -337,7 +359,7 @@ export default function PilaresTab({
       Estado: EstadoMeta.EN_PROCESO,
       Presupuesto_Asignado: parsePres,
       Fecha_Meta: metaFecha || undefined,
-      Sincronizar_Calendario: isConnected === "true" || metaSincronizar ? 1 : 0,
+      Sincronizar_Calendario: !!gToken || metaSincronizar ? 1 : 0,
       ID_Evento_Calendario: googleEventId
     };
 
@@ -400,10 +422,9 @@ export default function PilaresTab({
     if (!window.confirm("¿Seguro que deseas eliminar esta meta y sus micrometas asociadas?")) return;
 
     try {
-      const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
-      const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+      const gToken = getValidGoogleToken();
 
-      if (gToken && isConnected === "true" && !gToken.startsWith("mock_google_token_")) {
+      if (gToken && !gToken.startsWith("mock_google_token_")) {
         // 1. Delete Meta Google Calendar event
         const metaObj = metas.find(m => m.ID_Meta === id);
         if (metaObj && metaObj.ID_Evento_Calendario) {
@@ -451,13 +472,12 @@ export default function PilaresTab({
     const parseMonto = parseFloat(mmMonto) || 0;
 
     let googleEventId: string | null = null;
-    const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
-    const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+    const gToken = getValidGoogleToken();
 
     const metaObj = metas.find(m => m.ID_Meta === expandedMetaId);
     const metaPilarName = metaObj ? metaObj.Pilar : "Personal";
 
-    if (mmFecha && gToken && isConnected === "true") {
+    if (mmFecha && gToken) {
       if (gToken.startsWith("mock_google_token_")) {
         googleEventId = "mock-mm-evt-" + Math.random().toString(36).substring(2, 9) + "-" + Date.now();
       } else {
@@ -500,7 +520,7 @@ export default function PilaresTab({
       Gasto_Pendiente: (mmGeneraGasto && mmGastoPendiente) ? 1 : 0,
       ID_Tarjeta_Gasto: mmGeneraGasto ? mmTarjetaId : null,
       Fecha_Planificada: mmFecha || undefined,
-      Sincronizar_Calendario: isConnected === "true" || mmSincronizar ? 1 : 0,
+      Sincronizar_Calendario: !!gToken || mmSincronizar ? 1 : 0,
       ID_Evento_Calendario: googleEventId,
       Correlaciones: mmCorrelaciones
     };
@@ -571,11 +591,10 @@ export default function PilaresTab({
 
   const handleDeleteMicrometa = async (id: string) => {
     try {
-      const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
-      const isConnected = localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+      const gToken = getValidGoogleToken();
 
       const mmObj = micrometas.find(m => m.ID_Micrometa === id);
-      if (mmObj && mmObj.ID_Evento_Calendario && gToken && isConnected === "true" && !gToken.startsWith("mock_google_token_")) {
+      if (mmObj && mmObj.ID_Evento_Calendario && gToken && !gToken.startsWith("mock_google_token_")) {
         try {
           await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${mmObj.ID_Evento_Calendario}`, {
             method: "DELETE",

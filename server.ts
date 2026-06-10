@@ -267,6 +267,83 @@ async function startServer() {
     }
   });
 
+  // Google OAuth Link Account Endpoint
+  app.post("/api/auth/google/link", async (req, res) => {
+    try {
+      const { userId, token } = req.body;
+      if (!userId || !token) {
+        return res.status(400).json({ error: "userId y token de Google son obligatorios." });
+      }
+
+      // Verify token is valid and get Google user profile
+      const gRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!gRes.ok) {
+        return res.status(400).json({ error: "El token de Google no es válido o ha expirado." });
+      }
+
+      const info = await gRes.json();
+      if (!info.email) {
+        return res.status(400).json({ error: "El perfil de Google no contiene un correo válido." });
+      }
+
+      const googleEmail = info.email.trim().toLowerCase();
+
+      // Check if this Google email is already linked or registered to ANOTHER user account
+      const duplicateUser = await queryGet(
+        "SELECT * FROM usuarios WHERE (LOWER(TRIM(Gmail_Sincronizado)) = LOWER(TRIM(?)) OR LOWER(TRIM(Correo_Google)) = LOWER(TRIM(?))) AND ID_Usuario != ?",
+        [googleEmail, googleEmail, userId]
+      );
+
+      if (duplicateUser) {
+        return res.status(400).json({
+          error: `Esta cuenta de Google (${info.email}) ya está vinculada a otro perfil de usuario en el sistema. Para evitar duplicaciones, desvincúlala primero de esa cuenta.`
+        });
+      }
+
+      // Update current user's Google email
+      await queryRun(
+        "UPDATE usuarios SET Correo_Google = ? WHERE ID_Usuario = ?",
+        [googleEmail, userId]
+      );
+
+      // Return updated user clean details
+      const user: any = await queryGet("SELECT * FROM usuarios WHERE ID_Usuario = ?", [userId]);
+      if (!user) {
+        return res.status(404).json({ error: "Usuario no encontrado." });
+      }
+
+      const { Password_Hash, ...userClean } = user;
+      res.json({ success: true, user: userClean });
+    } catch (error: any) {
+      console.error("Error in Google Link:", error);
+      res.status(500).json({ error: error.message || "Error al vincular cuenta de Google." });
+    }
+  });
+
+  // Google OAuth Unlink Account Endpoint
+  app.post("/api/auth/google/unlink", async (req, res) => {
+    try {
+      const { userId } = req.body;
+      if (!userId) {
+        return res.status(400).json({ error: "userId es obligatorio." });
+      }
+
+      await queryRun(
+        "UPDATE usuarios SET Correo_Google = NULL WHERE ID_Usuario = ?",
+        [userId]
+      );
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error in Google Unlink:", error);
+      res.status(500).json({ error: error.message || "Error al desvincular cuenta de Google." });
+    }
+  });
+
+
   // Update User Profile details
   app.put("/api/usuarios/:id", async (req, res) => {
     try {

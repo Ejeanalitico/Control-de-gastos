@@ -28,6 +28,9 @@ COPY . .
 # Build both the Vite frontend and bundle the Express server
 RUN npm run build
 
+# Set production environment for runtime (avoids Vite dev server host block errors)
+ENV NODE_ENV=production
+
 # Expose the port (Railway binds dynamic port to PORT environment variable)
 EXPOSE 3000
 

@@ -17,7 +17,8 @@ import {
   AgendaEvento,
   Pilar,
   CorrelacionPilar,
-  Micrometa
+  Micrometa,
+  Prestamo
 } from "./types";
 import { 
   Building2, 

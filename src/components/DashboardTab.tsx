@@ -159,6 +159,15 @@ export default function DashboardTab({
   const [editSuccess, setEditSuccess] = useState<string>("");
   const [editError, setEditError] = useState<string>("");
 
+  // --- EDIT RECURRING EGRESO MODAL STATE ---
+  const [showEditEgresoModal, setShowEditEgresoModal] = useState<boolean>(false);
+  const [editingEgreso, setEditingEgreso] = useState<Egreso | null>(null);
+  const [editEgresoConcepto, setEditEgresoConcepto] = useState<string>("");
+  const [editEgresoMonto, setEditEgresoMonto] = useState<string>("");
+  const [editEgresoRecurrencia, setEditEgresoRecurrencia] = useState<string>("mensual");
+  const [editEgresoError, setEditEgresoError] = useState<string>("");
+  const [editEgresoSuccess, setEditEgresoSuccess] = useState<string>("");
+
   // Custom Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -1147,23 +1156,74 @@ export default function DashboardTab({
     } catch (err: any) {
       setEditError(err.message || "Error al actualizar.");
     }
-  };  const periodicItems = useMemo(() => {
-    const list: Array<{ name: string; category: string; amount: number; period: string; color: string; detail: string; isFallback?: boolean }> = [];
+  };
+
+  const handleSaveEgresoEdit = async () => {
+    if (!editingEgreso) return;
+    setEditEgresoError("");
+    setEditEgresoSuccess("");
+
+    try {
+      const updatedPayload = {
+        Concepto: editEgresoConcepto,
+        Monto: parseFloat(editEgresoMonto) || 0,
+        Recurrente: 1,
+        Recurrencia: editEgresoRecurrencia
+      };
+
+      const res = await fetch(`/api/egresos/${editingEgreso.ID_Egreso}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedPayload)
+      });
+
+      if (!res.ok) throw new Error("Fallo al guardar cambios del gasto en el servidor.");
+
+      // Reload dataset to update all tabs
+      const fetchRes = await fetch(`/api/data?userId=${activeUser.ID_Usuario}`);
+      if (fetchRes.ok) {
+        const data = await fetchRes.json();
+        setIngresos(data.ingresos || []);
+        setEgresos(data.egresos || []);
+        setDeudas(data.deudas || []);
+        setMetas(data.metas || []);
+        setEventos(data.eventos || []);
+        setMicrometas(data.micrometas || []);
+      }
+
+      setEditEgresoSuccess("¡Gasto actualizado correctamente!");
+      setTimeout(() => {
+        setEditEgresoSuccess("");
+        setShowEditEgresoModal(false);
+        setEditingEgreso(null);
+      }, 1500);
+    } catch (err: any) {
+      setEditEgresoError(err.message || "Error al actualizar el gasto.");
+    }
+  };
+
+  const periodicItems = useMemo(() => {
+    const list: Array<{ id?: string; name: string; category: string; amount: number; period: string; color: string; detail: string; isFallback?: boolean }> = [];
 
     // Filter fixed recurring egresos
     egresos.forEach(e => {
       if (
+        e.Recurrente === 1 ||
         e.Tipo_Gasto === "Fijo" || 
         e.Subcategoria.toLowerCase().includes("mensual") || 
         e.Concepto.toLowerCase().includes("renta") || 
         e.Concepto.toLowerCase().includes("suscrip") ||
         e.Concepto.toLowerCase().includes("plan")
       ) {
+        const freqLabel = e.Recurrencia 
+          ? (e.Recurrencia.charAt(0).toUpperCase() + e.Recurrencia.slice(1)) 
+          : "Mensual";
         list.push({
+          id: e.ID_Egreso,
           name: e.Concepto,
           category: e.Categoria_Pilar.replace("_", " "),
           amount: e.Monto,
-          period: "Mensual",
+          period: freqLabel,
           color: "teal",
           detail: `Vía: ${e.Metodo_Pago} | Categoría: ${e.Subcategoria}`
         });
@@ -1794,6 +1854,25 @@ export default function DashboardTab({
                   </span>
                 </div>
                 <p className="text-[11px] text-stone-500 mt-1">{item.detail}</p>
+                {item.id && (
+                  <div className="flex gap-2 justify-end border-t pt-2 mt-2 border-stone-200 dark:border-stone-850">
+                    <button
+                      onClick={() => {
+                        const originalEgreso = egresos.find(e => e.ID_Egreso === item.id);
+                        if (originalEgreso) {
+                          setEditingEgreso(originalEgreso);
+                          setEditEgresoConcepto(originalEgreso.Concepto);
+                          setEditEgresoMonto(originalEgreso.Monto.toString());
+                          setEditEgresoRecurrencia(originalEgreso.Recurrencia || "mensual");
+                          setShowEditEgresoModal(true);
+                        }
+                      }}
+                      className="text-[10px] text-teal-500 hover:text-teal-400 font-bold uppercase tracking-wide cursor-pointer transition-all flex items-center gap-1"
+                    >
+                      ✏️ Editar Gasto
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -2054,6 +2133,86 @@ export default function DashboardTab({
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 7. FLOATING MODAL OVERLAY (Editar Gasto Periódico) */}
+      {showEditEgresoModal && editingEgreso && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className={`w-full max-w-md rounded-[2.5rem] border shadow-2xl p-6 relative transition-all ${
+            darkMode ? "bg-[#18181b] border-stone-800 text-white" : "bg-white border-stone-200 text-stone-900"
+          }`}>
+            
+            {/* Close button */}
+            <button 
+              onClick={() => {
+                setShowEditEgresoModal(false);
+                setEditingEgreso(null);
+                setEditEgresoError("");
+                setEditEgresoSuccess("");
+              }}
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-stone-500/10 cursor-pointer text-stone-400 font-semibold"
+            >
+              ✕
+            </button>
+
+            <div className="space-y-4">
+              <div className="border-b pb-2 border-stone-250 dark:border-stone-800">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-teal-500">
+                  Editar Gasto Periódico
+                </h3>
+                <p className="text-[10px] text-stone-500 mt-0.5">
+                  Actualiza el concepto, monto y frecuencia de este egreso recurrente.
+                </p>
+              </div>
+
+              {editEgresoSuccess && <div className="p-2.5 text-xs rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">{editEgresoSuccess}</div>}
+              {editEgresoError && <div className="p-2.5 text-xs rounded-xl bg-rose-500/10 text-rose-450 border border-rose-500/20">{editEgresoError}</div>}
+
+              <div className="space-y-3">
+                <div className="space-y-1 text-left">
+                  <label className="text-[10px] uppercase font-bold text-stone-500 block">Concepto</label>
+                  <input
+                    type="text"
+                    value={editEgresoConcepto}
+                    onChange={(e) => setEditEgresoConcepto(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-1 text-left">
+                  <label className="text-[10px] uppercase font-bold text-stone-500 block">Monto</label>
+                  <input
+                    type="number"
+                    value={editEgresoMonto}
+                    onChange={(e) => setEditEgresoMonto(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-1 text-left">
+                  <label className="text-[10px] uppercase font-bold text-stone-500 block">Frecuencia</label>
+                  <select
+                    value={editEgresoRecurrencia}
+                    onChange={(e) => setEditEgresoRecurrencia(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white"
+                  >
+                    <option value="diaria">Diaria</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="quincenal">Quincenal</option>
+                    <option value="mensual">Mensual</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end border-t pt-3 border-stone-200 dark:border-stone-850">
+                <button
+                  onClick={handleSaveEgresoEdit}
+                  className="py-2 px-4 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-500 text-white cursor-pointer transition-all shadow-md"
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

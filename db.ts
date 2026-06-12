@@ -190,6 +190,8 @@ export function initDatabase() {
         Monto REAL,
         Metodo_Pago TEXT,
         Tipo_Gasto TEXT,
+        Recurrente INTEGER DEFAULT 0,
+        Recurrencia TEXT,
         FOREIGN KEY(ID_Usuario) REFERENCES usuarios(ID_Usuario) ON DELETE CASCADE
       )
     `);
@@ -319,6 +321,7 @@ export function initDatabase() {
     db.run("ALTER TABLE micrometas ADD COLUMN Recurrencia TEXT", () => {});
     db.run("ALTER TABLE micrometas ADD COLUMN ID_Padre_Recurrente TEXT", () => {});
     db.run("ALTER TABLE egresos ADD COLUMN Recurrente INTEGER DEFAULT 0", () => {});
+    db.run("ALTER TABLE egresos ADD COLUMN Recurrencia TEXT", () => {});
 
   });
 }

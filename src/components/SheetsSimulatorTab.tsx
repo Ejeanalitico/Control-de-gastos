@@ -131,7 +131,8 @@ export default function SheetsSimulatorTab({
     Monto: "",
     Metodo_Pago: "",
     Tipo_Gasto: TipoGasto.VARIABLE,
-    Recurrente: false
+    Recurrente: false,
+    Recurrencia: "mensual"
   });
 
   const [prestamoForm, setPrestamoForm] = useState({
@@ -268,7 +269,8 @@ export default function SheetsSimulatorTab({
       Monto: parseFloat(egresoForm.Monto),
       Metodo_Pago: egresoForm.Metodo_Pago || "Hojas Directas",
       Tipo_Gasto: egresoForm.Tipo_Gasto,
-      Recurrente: egresoForm.Recurrente ? 1 : 0
+      Recurrente: egresoForm.Recurrente ? 1 : 0,
+      Recurrencia: egresoForm.Recurrente ? egresoForm.Recurrencia : undefined
     };
 
     try {
@@ -287,7 +289,8 @@ export default function SheetsSimulatorTab({
           Monto: "",
           Metodo_Pago: "",
           Tipo_Gasto: TipoGasto.VARIABLE,
-          Recurrente: false
+          Recurrente: false,
+          Recurrencia: "mensual"
         });
         setShowAddForm(false);
       }
@@ -1010,7 +1013,7 @@ export default function SheetsSimulatorTab({
             )}
 
             {activeSheet === "D" && (
-              <form onSubmit={handleAddEgreso} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+              <form onSubmit={handleAddEgreso} className={`grid grid-cols-1 gap-3 items-end ${egresoForm.Recurrente ? "md:grid-cols-6" : "md:grid-cols-5"}`}>
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-bold text-stone-500">Fecha</label>
                   <input type="date" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={egresoForm.Fecha} onChange={(e)=>setEgresoForm({...egresoForm, Fecha: e.target.value})} />
@@ -1040,7 +1043,18 @@ export default function SheetsSimulatorTab({
                     className="w-4 h-4 cursor-pointer text-teal-650 rounded focus:ring-teal-500"
                   />
                 </div>
-                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-xs cursor-pointer md:col-span-5 transition-all shadow-md">Registrar</button>
+                {egresoForm.Recurrente && (
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase font-bold text-stone-500">Frecuencia</label>
+                    <select className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={egresoForm.Recurrencia} onChange={(e)=>setEgresoForm({...egresoForm, Recurrencia: e.target.value})}>
+                      <option value="diaria">Diaria</option>
+                      <option value="semanal">Semanal</option>
+                      <option value="quincenal">Quincenal</option>
+                      <option value="mensual">Mensual</option>
+                    </select>
+                  </div>
+                )}
+                <button type="submit" className={`py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-xs cursor-pointer transition-all shadow-md ${egresoForm.Recurrente ? "md:col-span-6" : "md:col-span-5"}`}>Registrar</button>
               </form>
             )}
 

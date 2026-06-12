@@ -112,6 +112,7 @@ export interface Egreso {
   Metodo_Pago: string; // Alias for UI displaying Card name or Cash/Efectivo
   Tipo_Gasto: TipoGasto;
   Recurrente?: number; // 0 or 1
+  Recurrencia?: string; // "diaria" | "semanal" | "quincenal" | "mensual"
 }
 
 // Representing Loans / Préstamos

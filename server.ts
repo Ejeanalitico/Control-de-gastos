@@ -535,11 +535,11 @@ async function startServer() {
   // Egresos
   app.post("/api/egresos", async (req, res) => {
     try {
-      const { ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto, Recurrente } = req.body;
+      const { ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto, Recurrente, Recurrencia } = req.body;
       await queryRun(`
-        INSERT INTO egresos (ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto, Recurrente)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto, Recurrente ? 1 : 0]);
+        INSERT INTO egresos (ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto, Recurrente, Recurrencia)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto, Recurrente ? 1 : 0, Recurrencia || null]);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -549,6 +549,20 @@ async function startServer() {
   app.delete("/api/egresos/:id", async (req, res) => {
     try {
       await queryRun("DELETE FROM egresos WHERE ID_Egreso = ?", [req.params.id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put("/api/egresos/:id", async (req, res) => {
+    try {
+      const { Concepto, Monto, Recurrente, Recurrencia } = req.body;
+      await queryRun(`
+        UPDATE egresos
+        SET Concepto = ?, Monto = ?, Recurrente = ?, Recurrencia = ?
+        WHERE ID_Egreso = ?
+      `, [Concepto, parseFloat(Monto), Recurrente ? 1 : 0, Recurrencia || null, req.params.id]);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

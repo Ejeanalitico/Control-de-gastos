@@ -18,7 +18,8 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
-  Link
+  Link,
+  Printer
 } from "lucide-react";
 import { 
   MetaPilar, 
@@ -41,7 +42,16 @@ import {
   ResponsiveContainer, 
   PieChart, 
   Pie, 
-  Cell
+  Cell,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis
 } from "recharts";
 
 // --- COLOR CONVERSION HELPERS ---
@@ -616,6 +626,8 @@ export default function PilaresTab({
     message: "",
     onConfirm: () => {}
   });
+  const [pilarChartType, setPilarChartType] = useState<"bar" | "line" | "area" | "radar">("bar");
+
   const formatAmount = (val: number) => {
     const parts = (val || 0).toLocaleString("en-US", {
       minimumFractionDigits: 2,
@@ -682,6 +694,7 @@ export default function PilaresTab({
       const stats = pilarProgress[p.ID_Pilar] || { total: 0, completed: 0, pct: 0 };
       return {
         name: p.Nombre,
+        nameWithPct: `${p.Nombre} (${stats.pct}%)`,
         'Progreso %': stats.pct,
         'Completadas': stats.completed,
         'Total': stats.total,
@@ -1940,6 +1953,7 @@ export default function PilaresTab({
 
   return (
     <div className="space-y-6 animate-fadeIn font-sans text-left">
+      <div className="no-print space-y-6">
       
       {/* 1. Header Banner */}
       <div className={`p-6 rounded-[2rem] border ${
@@ -1995,6 +2009,14 @@ export default function PilaresTab({
           >
             <Link className="w-3.5 h-3.5" />
             <span>Lazos ({correlacionesPilares.length})</span>
+          </button>
+
+          <button
+            onClick={() => window.print()}
+            className="py-2 px-3.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 bg-teal-500 hover:bg-teal-650 text-white border-transparent shadow-md"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Descargar Plan PDF</span>
           </button>
         </div>
       </div>
@@ -2283,43 +2305,114 @@ export default function PilaresTab({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
           
-          {/* Chart 1: Progress per Pillar (Horizontal BarChart) */}
+          {/* Chart 1: Progress per Pillar (Dynamic Chart Selection) */}
           <div className="space-y-3">
-            <h4 className={`text-xs font-bold uppercase tracking-wider text-stone-400`}>
-              Progreso por Pilar / Subpilar
-            </h4>
+            <div className="flex items-center justify-between gap-2">
+              <h4 className={`text-xs font-bold uppercase tracking-wider text-stone-400`}>
+                Progreso por Pilar / Subpilar
+              </h4>
+              <select
+                value={pilarChartType}
+                onChange={(e) => setPilarChartType(e.target.value as any)}
+                className={`text-[10px] uppercase font-bold tracking-wider py-1 px-2.5 rounded-xl border focus:outline-none cursor-pointer transition-all ${
+                  darkMode ? "bg-stone-900 border-stone-800 text-stone-300 hover:bg-stone-800" : "bg-white border-stone-250 text-stone-700 hover:bg-stone-50"
+                }`}
+              >
+                <option value="bar">📊 Barras</option>
+                <option value="line">📈 Líneas</option>
+                <option value="area">📉 Áreas</option>
+                <option value="radar">🕸️ Radar</option>
+              </select>
+            </div>
             
             {pilarChartData.length === 0 ? (
               <div className={`p-10 border border-dashed rounded-3xl text-center text-xs text-stone-500 italic ${darkMode ? "bg-stone-950/20 border-stone-850" : "bg-stone-50/50 border-stone-200"}`}>
                 No hay metas registradas con avance para mostrar gráficos.
               </div>
             ) : (
-              <div className="w-full h-[260px]">
+              <div className="w-full h-[260px] flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
-                    data={pilarChartData} 
-                    layout="vertical"
-                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-                  >
-                    <XAxis type="number" domain={[0, 100]} stroke={darkMode ? "#57534e" : "#a8a29e"} fontSize={9} />
-                    <YAxis dataKey="name" type="category" stroke={darkMode ? "#57534e" : "#a8a29e"} fontSize={9} width={75} />
-                    <Tooltip 
-                      contentStyle={{
-                        backgroundColor: darkMode ? "#1c1917" : "#ffffff",
-                        borderColor: darkMode ? "#292524" : "#e7e5e4",
-                        color: darkMode ? "#ffffff" : "#000000",
-                        fontSize: "10px",
-                        borderRadius: "12px"
-                      }}
-                      formatter={(value: any) => [`${value}%`, "Progreso"]}
-                    />
-                    <Bar dataKey="Progreso %" radius={[0, 6, 6, 0]} barSize={12}>
-                      {pilarChartData.map((entry, index) => {
-                        const colors = getNodeColor(entry.color);
-                        return <Cell key={`cell-${index}`} fill={colors.hex} />;
-                      })}
-                    </Bar>
-                  </BarChart>
+                  {pilarChartType === "bar" ? (
+                    <BarChart 
+                      data={pilarChartData} 
+                      layout="vertical"
+                      margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                    >
+                      <XAxis type="number" domain={[0, 100]} stroke={darkMode ? "#57534e" : "#a8a29e"} fontSize={9} />
+                      <YAxis dataKey="nameWithPct" type="category" stroke={darkMode ? "#57534e" : "#a8a29e"} fontSize={9} width={130} />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: darkMode ? "#1c1917" : "#ffffff",
+                          borderColor: darkMode ? "#292524" : "#e7e5e4",
+                          color: darkMode ? "#ffffff" : "#000000",
+                          fontSize: "10px",
+                          borderRadius: "12px"
+                        }}
+                        formatter={(value: any) => [`${value}%`, "Progreso"]}
+                      />
+                      <Bar dataKey="Progreso %" radius={[0, 6, 6, 0]} barSize={12}>
+                        {pilarChartData.map((entry, index) => {
+                          const colors = getNodeColor(entry.color);
+                          return <Cell key={`cell-${index}`} fill={colors.hex} />;
+                        })}
+                      </Bar>
+                    </BarChart>
+                  ) : pilarChartType === "line" ? (
+                    <LineChart 
+                      data={pilarChartData}
+                      margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
+                    >
+                      <XAxis dataKey="nameWithPct" stroke={darkMode ? "#57534e" : "#a8a29e"} fontSize={8} />
+                      <YAxis stroke={darkMode ? "#57534e" : "#a8a29e"} fontSize={9} domain={[0, 100]} />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: darkMode ? "#1c1917" : "#ffffff",
+                          borderColor: darkMode ? "#292524" : "#e7e5e4",
+                          color: darkMode ? "#ffffff" : "#000000",
+                          fontSize: "10px",
+                          borderRadius: "12px"
+                        }}
+                        formatter={(value: any) => [`${value}%`, "Progreso"]}
+                      />
+                      <Line type="monotone" dataKey="Progreso %" stroke="#14b8a6" strokeWidth={2} activeDot={{ r: 6 }} />
+                    </LineChart>
+                  ) : pilarChartType === "area" ? (
+                    <AreaChart 
+                      data={pilarChartData}
+                      margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
+                    >
+                      <XAxis dataKey="nameWithPct" stroke={darkMode ? "#57534e" : "#a8a29e"} fontSize={8} />
+                      <YAxis stroke={darkMode ? "#57534e" : "#a8a29e"} fontSize={9} domain={[0, 100]} />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: darkMode ? "#1c1917" : "#ffffff",
+                          borderColor: darkMode ? "#292524" : "#e7e5e4",
+                          color: darkMode ? "#ffffff" : "#000000",
+                          fontSize: "10px",
+                          borderRadius: "12px"
+                        }}
+                        formatter={(value: any) => [`${value}%`, "Progreso"]}
+                      />
+                      <Area type="monotone" dataKey="Progreso %" stroke="#14b8a6" fill="#14b8a6" fillOpacity={0.2} strokeWidth={2} />
+                    </AreaChart>
+                  ) : (
+                    <RadarChart cx="50%" cy="50%" outerRadius="75%" data={pilarChartData}>
+                      <PolarGrid stroke={darkMode ? "#292524" : "#e7e5e4"} />
+                      <PolarAngleAxis dataKey="nameWithPct" stroke={darkMode ? "#a8a29e" : "#57534e"} fontSize={8} />
+                      <PolarRadiusAxis angle={30} domain={[0, 100]} fontSize={8} stroke={darkMode ? "#57534e" : "#a8a29e"} />
+                      <Radar name="Progreso" dataKey="Progreso %" stroke="#14b8a6" fill="#14b8a6" fillOpacity={0.4} />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: darkMode ? "#1c1917" : "#ffffff",
+                          borderColor: darkMode ? "#292524" : "#e7e5e4",
+                          color: darkMode ? "#ffffff" : "#000000",
+                          fontSize: "10px",
+                          borderRadius: "12px"
+                        }}
+                        formatter={(value: any) => [`${value}%`, "Progreso"]}
+                      />
+                    </RadarChart>
+                  )}
                 </ResponsiveContainer>
               </div>
             )}
@@ -2533,6 +2626,156 @@ export default function PilaresTab({
             </div>
           );
         })}
+      </div>
+      </div>
+
+      {/* Contenedor Exclusivo para Impresión / PDF (en español) */}
+      <div className="print-only-container font-sans text-stone-900 p-8 space-y-6">
+        {/* Encabezado del Reporte */}
+        <div className="flex justify-between items-start border-b pb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-stone-950">Reporte Integral de Metas SMART y Ecosistema de Bienestar</h1>
+            <p className="text-xs text-stone-500 mt-1">Ecosistema de Crecimiento de 5 Pilares</p>
+          </div>
+          <div className="text-right text-xs text-stone-600">
+            <p className="font-semibold">Usuario: {activeUser.Nombre_Usuario || activeUser.Gmail_Sincronizado || "Usuario"}</p>
+            <p className="text-stone-500 mt-0.5">Generado el: {new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+          </div>
+        </div>
+
+        {/* Resumen Estadístico */}
+        <div className="grid grid-cols-4 gap-4 py-4">
+          <div className="border rounded-2xl p-4 bg-stone-50/50 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Pilares Activos</p>
+            <h3 className="text-xl font-extrabold text-stone-900 mt-1">{pilares.length}</h3>
+          </div>
+          <div className="border rounded-2xl p-4 bg-stone-50/50 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Metas SMART</p>
+            <h3 className="text-xl font-extrabold text-stone-900 mt-1">{metas.length}</h3>
+          </div>
+          <div className="border rounded-2xl p-4 bg-stone-50/50 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Submetas Registradas</p>
+            <h3 className="text-xl font-extrabold text-stone-900 mt-1">{micrometas.length}</h3>
+          </div>
+          <div className="border rounded-2xl p-4 bg-stone-50/50 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Avance Ecosistema</p>
+            <h3 className="text-xl font-extrabold text-teal-600 mt-1">{overallStats.pct}%</h3>
+          </div>
+        </div>
+
+        {/* Gráfico de Progreso */}
+        <div className="border rounded-2xl p-6 bg-white space-y-4 page-break-inside-avoid">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-stone-700">Progreso por Pilar / Subpilar</h2>
+          {pilarChartData.length === 0 ? (
+            <p className="text-xs text-stone-500 italic">No hay metas registradas con avance para mostrar gráficos.</p>
+          ) : (
+            <div className="w-full flex items-center justify-center h-[260px]">
+              <BarChart 
+                width={650} 
+                height={240} 
+                data={pilarChartData} 
+                layout="vertical"
+                margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+              >
+                <XAxis type="number" domain={[0, 100]} stroke="#78716c" fontSize={9} />
+                <YAxis dataKey="nameWithPct" type="category" stroke="#78716c" fontSize={9} width={150} />
+                <Bar dataKey="Progreso %" radius={[0, 6, 6, 0]} barSize={12}>
+                  {pilarChartData.map((entry, index) => {
+                    const colors = getNodeColor(entry.color);
+                    return <Cell key={`cell-${index}`} fill={colors.hex} />;
+                  })}
+                </Bar>
+              </BarChart>
+            </div>
+          )}
+        </div>
+
+        {/* Desglose Detallado por Pilar */}
+        <div className="space-y-6">
+          <h2 className="text-base font-bold text-stone-900 border-b pb-2">Plan Detallado de Metas SMART por Pilar</h2>
+          {pilares.map(pilar => {
+            const stats = pilarProgress[pilar.ID_Pilar] || { total: 0, completed: 0, pct: 0 };
+            const pilarMetas = metas.filter(m => m.Pilar === pilar.Nombre || m.Pilar === pilar.ID_Pilar);
+            
+            return (
+              <div key={pilar.ID_Pilar} className="border rounded-2xl p-5 bg-white space-y-4 page-break-inside-avoid">
+                <div className="flex justify-between items-center border-b pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: getNodeColor(pilar.Color || "blue").hex }} />
+                    <h3 className="font-bold text-sm text-stone-800">{pilar.Nombre}</h3>
+                  </div>
+                  <span className="text-xs font-bold text-stone-500">Progreso: {stats.pct}% ({stats.completed} de {stats.total} metas)</span>
+                </div>
+
+                {pilarMetas.length === 0 ? (
+                  <p className="text-xs text-stone-500 italic">No hay metas registradas en este pilar.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {pilarMetas.map(meta => {
+                      const metaMicrometas = micrometas.filter(mm => mm.ID_Meta === meta.ID_Meta);
+                      return (
+                        <div key={meta.ID_Meta} className="border-l-2 pl-3 py-1 space-y-2" style={{ borderColor: getNodeColor(pilar.Color || "blue").hex }}>
+                          <div className="flex justify-between items-start gap-4">
+                            <div>
+                              <p className="text-xs font-semibold text-stone-900">🎯 Meta: {meta.Meta_SMART}</p>
+                              {meta.Indicador_Exito && (
+                                <p className="text-[10px] text-stone-500 mt-0.5">📊 Indicador: {meta.Indicador_Exito}</p>
+                              )}
+                            </div>
+                            <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                              meta.Estado === EstadoMeta.LOGRADO 
+                                ? "bg-teal-50 text-teal-700 border border-teal-200" 
+                                : "bg-stone-50 text-stone-600 border border-stone-200"
+                            }`}>
+                              {meta.Estado === EstadoMeta.LOGRADO ? "Logrado" : "En Progreso"}
+                            </span>
+                          </div>
+                          
+                          <div className="flex gap-4 text-[10px] text-stone-500">
+                            {meta.Fecha_Meta && <span>📅 Límite: {new Date(meta.Fecha_Meta).toLocaleDateString('es-ES')}</span>}
+                            {meta.Presupuesto_Asignado > 0 && <span>💰 Presupuesto: {formatAmountText(meta.Presupuesto_Asignado)}</span>}
+                          </div>
+
+                          {metaMicrometas.length > 0 && (
+                            <div className="mt-2 pl-4">
+                              <p className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mb-1">Submetas (Pasos de acción)</p>
+                              <table className="min-w-full divide-y divide-stone-150 text-[10px]">
+                                <thead>
+                                  <tr className="text-left text-stone-500">
+                                    <th className="py-1">Nombre</th>
+                                    <th className="py-1">Estado</th>
+                                    <th className="py-1 text-right">Costo / Gasto</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-stone-100 text-stone-700">
+                                  {metaMicrometas.map(mm => (
+                                    <tr key={mm.ID_Micrometa}>
+                                      <td className="py-1">{mm.Titulo}</td>
+                                      <td className="py-1">
+                                        <span className={`font-semibold ${
+                                          mm.Estado === "Completada" ? "text-teal-650" : mm.Estado === "Cancelada" ? "text-rose-600" : "text-stone-500"
+                                        }`}>
+                                          {mm.Estado}
+                                        </span>
+                                      </td>
+                                      <td className="py-1 text-right">
+                                        {mm.Genera_Gasto && mm.Monto_Gasto ? formatAmountText(mm.Monto_Gasto) : "—"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {completingMeta && (

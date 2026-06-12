@@ -455,7 +455,7 @@ export default function App() {
         ) : (
           <>
             {/* Navigation Tabs — desktop only */}
-            <div className={`hidden sm:flex flex-wrap items-center p-1.5 rounded-2xl border max-w-4xl ${
+            <div className={`no-print hidden sm:flex flex-wrap items-center p-1.5 rounded-2xl border max-w-4xl ${
               darkMode ? "bg-stone-900/40 border-stone-900" : "bg-stone-100 border-stone-200"
             }`}>
               <button

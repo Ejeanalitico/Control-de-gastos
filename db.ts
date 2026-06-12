@@ -1,8 +1,29 @@
 import sqlite3 from "sqlite3";
 import crypto from "crypto";
 import path from "path";
+import fs from "fs";
 
-const dbPath = path.join(process.cwd(), "database.sqlite");
+let dbPath: string;
+if (process.env.DATABASE_PATH) {
+  dbPath = process.env.DATABASE_PATH;
+} else {
+  try {
+    // If a persistent /data directory exists and is writable, use it to persist across redeploys
+    fs.accessSync("/data", fs.constants.W_OK);
+    dbPath = "/data/database.sqlite";
+    console.log("[DB] Using persistent path /data/database.sqlite");
+  } catch (e) {
+    dbPath = path.join(process.cwd(), "database.sqlite");
+    console.log(`[DB] Using local database path: ${dbPath}`);
+  }
+}
+
+// Ensure the directory exists
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
 const db = new sqlite3.Database(dbPath);
 
 // Cryptographic Password Hashing using built-in Node.js crypto

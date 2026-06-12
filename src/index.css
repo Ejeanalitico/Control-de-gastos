@@ -82,3 +82,54 @@
   }
 }
 
+/* Print report layout styles for PDF export */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Hide all main elements of the app on print */
+  header, nav, footer, button, select, input, textarea, .no-print {
+    display: none !important;
+  }
+
+  /* Show only the printable container */
+  .print-only-container {
+    display: block !important;
+    visibility: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+  }
+
+  .print-only-container * {
+    visibility: visible !important;
+  }
+
+  /* Printable tables and cards formatting */
+  .print-card {
+    border: 1px solid #e5e7eb !important;
+    background: #ffffff !important;
+    color: #1f2937 !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 1rem !important;
+    padding: 1rem !important;
+    border-radius: 0.75rem !important;
+  }
+
+  /* Enable background colors in printed PDF */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Hide print layout in standard screen media */
+.print-only-container {
+  display: none;
+}
+
+

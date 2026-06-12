@@ -158,7 +158,7 @@ export default function GeminiAuditTab({
         let content = trimmed.substring(1).trim();
         // Bold in bullet
         return (
-          <li key={idx} className="ml-5 list-disc text-xs leading-relaxed mb-1.5 text-stone-500">
+          <li key={idx} className={`ml-5 list-disc text-xs leading-relaxed mb-1.5 ${darkMode ? "text-stone-300" : "text-stone-850"}`}>
             {formatBoldText(content)}
           </li>
         );
@@ -170,7 +170,7 @@ export default function GeminiAuditTab({
           return (
             <div key={idx} className="ml-4 flex gap-2 text-xs leading-relaxed mb-2">
               <span className="font-semibold text-teal-600">{match[1]}.</span>
-              <span className="text-stone-500">{formatBoldText(match[2].trim())}</span>
+              <span className={`text-xs ${darkMode ? "text-stone-300" : "text-stone-850"}`}>{formatBoldText(match[2].trim())}</span>
             </div>
           );
         }
@@ -183,7 +183,7 @@ export default function GeminiAuditTab({
 
       // Regular paragraph
       return (
-        <p key={idx} className="text-xs text-stone-500 leading-relaxed mb-2.5">
+        <p key={idx} className={`text-xs leading-relaxed mb-2.5 ${darkMode ? "text-stone-300" : "text-stone-850"}`}>
           {formatBoldText(trimmed)}
         </p>
       );
@@ -241,7 +241,7 @@ export default function GeminiAuditTab({
               <h4 className={`text-sm font-sans font-bold leading-tight ${darkMode ? "text-white" : "text-stone-900"}`}>
                 Auditoría Semanal de 5 Pilares con Gemini AI
               </h4>
-              <p className="text-xs text-stone-500 mt-1 leading-normal">
+              <p className={`text-xs mt-1 leading-normal ${darkMode ? "text-stone-400" : "text-stone-600"}`}>
                 Analiza de forma proactiva la liquidez mensual, plazos de tarjetas y el impacto cruzado entre tus pilares de crecimiento (Salud, Escolar, Laboral, Personal, Amoroso).
               </p>
             </div>

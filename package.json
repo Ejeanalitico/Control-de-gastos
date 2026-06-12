@@ -36,5 +36,6 @@
   },
   "engines": {
     "node": "20.x"
-  }
+  },
+  "description": "Control de gastos y metas con SQLite"
 }

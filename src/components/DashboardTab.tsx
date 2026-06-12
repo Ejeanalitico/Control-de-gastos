@@ -547,6 +547,10 @@ export default function DashboardTab({
     // Add micrometas to the calendar — resolve pilar name from parent meta
     micrometas.forEach(mm => {
       if (mm.Fecha_Planificada) {
+        // Evitar duplicar si esta micrometa ya está en la base de datos (eventos sincronizados)
+        const alreadyInDbEvents = list.some(evt => evt.ID_Actividad === `evt-micrometa-${mm.ID_Micrometa}`);
+        if (alreadyInDbEvents) return;
+
         const parentMeta = metas.find(m => m.ID_Meta === mm.ID_Meta);
         // parentMeta.Pilar may be an ID_Pilar or a name string
         const parentPilarObj = parentMeta

@@ -11,7 +11,18 @@ import {
   PieChart,
   DollarSign
 } from "lucide-react";
-import { Ingreso, Egreso, Deuda, MetaPilar, AgendaEvento, Usuario } from "../types";
+import { 
+  Ingreso, 
+  Egreso, 
+  Deuda, 
+  MetaPilar, 
+  AgendaEvento, 
+  Usuario, 
+  Micrometa, 
+  Pilar, 
+  CorrelacionPilar, 
+  Prestamo 
+} from "../types";
 
 interface GeminiAuditTabProps {
   darkMode: boolean;
@@ -22,6 +33,10 @@ interface GeminiAuditTabProps {
   metas: MetaPilar[];
   eventos: AgendaEvento[];
   currency: string;
+  micrometas: Micrometa[];
+  pilares: Pilar[];
+  correlacionesPilares: CorrelacionPilar[];
+  prestamos: Prestamo[];
 }
 
 export default function GeminiAuditTab({ 
@@ -32,7 +47,11 @@ export default function GeminiAuditTab({
   deudas, 
   metas,
   eventos,
-  currency
+  currency,
+  micrometas,
+  pilares,
+  correlacionesPilares,
+  prestamos
 }: GeminiAuditTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<"audit" | "optimize">("audit");
   const [loading, setLoading] = useState(false);
@@ -47,7 +66,19 @@ export default function GeminiAuditTab({
       const response = await fetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activeUser, ingresos, egresos, deudas, metas, eventos, currency }),
+        body: JSON.stringify({ 
+          activeUser, 
+          ingresos, 
+          egresos, 
+          deudas, 
+          metas, 
+          eventos, 
+          currency,
+          micrometas,
+          pilares,
+          correlacionesPilares,
+          prestamos
+        }),
       });
       if (!response.ok) {
         throw new Error("Error en el servidor al generar diagnóstico");

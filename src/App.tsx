@@ -590,6 +590,10 @@ export default function App() {
                   metas={metas} 
                   eventos={eventos} 
                   currency={currency}
+                  micrometas={micrometas}
+                  pilares={pilares}
+                  correlacionesPilares={correlacionesPilares}
+                  prestamos={prestamos}
                 />
               )}
 

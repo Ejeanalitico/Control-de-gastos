@@ -1263,17 +1263,24 @@ async function startServer() {
   // API Route: Auditoría Semanal de 5 Pilares con Gemini (Consolidación Multi-Temporal Inteligente)
   app.post("/api/audit", async (req, res) => {
     try {
-      const { 
-        idUsuario,
-        nombreUsuario,
-        configuracionUsuario, // TABLA A (Tope_Amoroso, Salud_Personal)
-        ingresos,             // TABLA B (Monto_Neto)
-        tarjetas,             // TABLA C (Monedero, Líneas, Saldos, Cortes, Límites)
-        egresos,              // TABLA D (Conexiones y montos)
-        actividades,          // TABLA E (Agenda con Requiere_Pago)
-        visualPayload,        // Contains week, month, historical summary stats computed client-side
-        currency
-      } = req.body;
+      const activeUser = req.body.activeUser;
+      const idUsuario = req.body.idUsuario || activeUser?.ID_Usuario;
+      const nombreUsuario = req.body.nombreUsuario || activeUser?.Nombre_Usuario;
+      const configuracionUsuario = req.body.configuracionUsuario || activeUser;
+      
+      const ingresos = req.body.ingresos || [];
+      const tarjetas = req.body.tarjetas || req.body.deudas || [];
+      const egresos = req.body.egresos || [];
+      const actividades = req.body.actividades || req.body.eventos || [];
+      
+      const metas = req.body.metas || [];
+      const micrometas = req.body.micrometas || [];
+      const pilares = req.body.pilares || [];
+      const correlacionesPilares = req.body.correlacionesPilares || [];
+      const prestamos = req.body.prestamos || [];
+      
+      const visualPayload = req.body.visualPayload || {};
+      const currency = req.body.currency;
 
       const generateFallbackAudit = () => {
         const totalIncomes = ingresos ? ingresos.reduce((s: number, i: any) => s + i.Monto_Neto, 0) : 0;
@@ -1429,13 +1436,27 @@ ${steps.slice(0, 3).map((s, idx) => `${idx + 1}. **Paso ${idx + 1}:** ${s}`).joi
         });
 
         const prompt = `
-Eres el Consultor Estratégico y Auditor de Vida del usuario activo (${nombreUsuario || "Usuario Premium"}). Tu tarea es analizar el bloque de datos relacional y multi-temporal que se te proporciona (Última semana vs Mes vs Histórico) y realizar un desglose hiper-personalizado sin inventar datos en absoluto.
+Eres el Consultor Estratégico, Auditor de Vida y Asesor Financiero del usuario activo (${nombreUsuario || "Usuario Premium"}). Tu tarea es realizar un diagnóstico integral del Ecosistema de Crecimiento del usuario analizando todas las tablas relacionales proporcionadas.
 
-=== TABLA A: CONFIGURACIÓN DE USUARIO (AISLAMIENTO LOGICO) ===
+A continuación se detalla el propósito de cada tabla de datos del ecosistema para guiar tu análisis:
+1. **TABLA A: CONFIGURACIÓN DE USUARIO (usuarios)**: Perfil básico del usuario y umbrales de advertencia en porcentaje (ej. Tope_Amoroso_Porcentaje, Salud_Personal_Base_Porcentaje).
+2. **TABLA B: INGRESOS NETOS (ingresos)**: Ingresos mensuales recibidos por salarios o freelance que determinan el presupuesto total del usuario.
+3. **TABLA C: MONEDERO E INSTRUMENTOS FINANCIEROS (deudas/tarjetas)**: Cuentas bancarias de débito (saldo disponible real) y tarjetas de crédito (deuda actual, límite de crédito, tasa de interés, fecha de corte y límite de pago).
+4. **TABLA D: EGRESOS / GASTOS (egresos)**: Gastos y consumos realizados categorizados por pilar y subcategoría.
+5. **TABLA E: REGISTRO DE ACTIVIDADES Y AGENDA (eventos)**: Distribución del tiempo del usuario en actividades. Muestra el balance entre vida personal, laboral y gastos futuros planificados.
+6. **TABLA F: PLAN DE METAS SMART (metas)**: Objetivos estratégicos SMART asociados a un pilar con presupuestos, fechas y estado de avance.
+7. **TABLA G: PILARES Y SUBPILARES DEL BIENESTAR (pilares)**: La estructura jerárquica de crecimiento del usuario (Raíces como Crecimiento, Salud, Económico, Entorno y sus subpilares).
+8. **TABLA H: LAZOS DE DEPENDENCIA Y CORRELACIÓN (correlaciones_pilares)**: Conexiones que muestran cómo influye un pilar en otro (ej. si el subpilar Laboral se descuida, impacta al pilar Económico).
+9. **TABLA I: SUBMETAS O ACCIONES DIARIAS (micrometas)**: Pasos accionables específicos de cada Meta SMART con sus fechas, estados y gastos vinculados.
+10. **TABLA J: CRÉDITOS Y PRÉSTAMOS ACTIVOS (prestamos)**: Pasivos y préstamos externos con fechas de vencimiento y montos a devolver.
+
+=== DATOS EN TIEMPO REAL DEL USUARIO ===
+
+=== TABLA A: CONFIGURACIÓN DE USUARIO ===
 - ID_Usuario: ${idUsuario}
 - Configuración de topes y presupuestos base: ${JSON.stringify(configuracionUsuario || {}, null, 2)}
 
-=== TABLA B: INGRESOS NETOS (PERCEPCIONES) ===
+=== TABLA B: INGRESOS NETOS ===
 ${JSON.stringify(ingresos || [], null, 2)}
 
 === TABLA C: MONEDERO E INSTRUMENTOS FINANCIEROS ===
@@ -1447,29 +1468,42 @@ ${JSON.stringify(egresos || [], null, 2)}
 === TABLA E: REGISTRO DE ACTIVIDADES Y AGENDA ===
 ${JSON.stringify(actividades || [], null, 2)}
 
+=== TABLA F: PLAN DE METAS SMART ===
+${JSON.stringify(metas || [], null, 2)}
+
+=== TABLA G: PILARES Y SUBPILARES ===
+${JSON.stringify(pilares || [], null, 2)}
+
+=== TABLA H: LAZOS DE DEPENDENCIA Y CORRELACIÓN ===
+${JSON.stringify(correlacionesPilares || [], null, 2)}
+
+=== TABLA I: SUBMETAS O ACCIONES DIARIAS ===
+${JSON.stringify(micrometas || [], null, 2)}
+
+=== TABLA J: CRÉDITOS Y PRÉSTAMOS ACTIVOS ===
+${JSON.stringify(prestamos || [], null, 2)}
+
 === HORIZONTES METRICOS DE TIEMPO CONSOLIDADOS ===
 ${JSON.stringify(visualPayload || {}, null, 2)}
 
 ==================================================
 TU TAREA COGNITIVA PRINCIPAL:
-Genera un output altamente analítico estructurado ESTRICTAMENTE en tres secciones independientes:
+Genera un diagnóstico de auditoría inteligente y accionable estructurado en tres secciones claras y separadas por subtítulos en formato Markdown:
 
-1. COMPORTAMIENTO TEMPORAL CRUZADO:
-   - Compara los gastos y actividades de la última semana contra la media del mes actual y su comportamiento histórico. 
-   - Destaca de forma explícita si el ritmo de gasto de los últimos 7 días pone en riesgo el pago de las fechas límite de las tarjetas que vencen este mes (Tabla C).
-   - Analiza el balance entre actividades productivas sin costo registradas vs gastos realizados en los pilares.
+1. COMPORTAMIENTO TEMPORAL Y BALANCE DE PILARES:
+   - Analiza el flujo de caja (Ingresos vs Gastos) y la tasa de ahorro.
+   - Analiza la alineación entre las Metas SMART (Tabla F), Submetas (Tabla I) y el uso de su tiempo en la Agenda (Tabla E).
+   - Analiza el impacto cruzado usando los Lazos de Correlación (Tabla H) para explicar cómo la inacción en un pilar (ej. Salud) está afectando a otros pilares (ej. Crecimiento/Laboral).
 
-2. DETECCIÓN DE DESCALCES Y PUNTOS CRÍTICOS:
-   - Evalúa si hay eventos o citas agendadas a futuro (Tabla E) que requieran liquidez inmediata y compárala con el saldo disponible en sus cuentas de débito (Tabla C).
-   - Si la deuda actual de las tarjetas supera el umbral seguro basado en sus ingresos históricos, enciende una alerta cuantitativa explícita.
+2. DETECCIÓN DE DESCALCES, DEUDAS Y PUNTOS CRÍTICOS:
+   - Identifica descalces de liquidez: compara actividades futuras agendadas con costo con el saldo disponible en débito.
+   - Evalúa el riesgo financiero: revisa la deuda en tarjetas de crédito (Tabla C) y préstamos activos (Tabla J) respecto a los ingresos mensuales.
+   - Monitorea si se excede el Tope_Amoroso_Porcentaje de la configuración (Tabla A) en gastos de salidas/placer.
 
-3. CONSEJOS Y SOLUCIONES PROPUESTAS:
-   - Responde de forma proactiva a posibles dudas del usuario basándote en su historial.
-   - Da un plan de acción sugerido de 3 pasos para la siguiente semana (ej: 'Para cubrir el pago de tu tarjeta X que vence en 5 días sin generar intereses, congela los gastos del Pilar Amoroso durante esta semana, ya que en los últimos 7 días has excedido tu promedio histórico en esa categoría en un 15%').
-
-Escribe tu respuesta con un tono súper asertivo y de consultoría ejecutiva, con subtítulos claros y formato de Markdown impecable y limpio.
-
-⚠️ REGLA CRÍTICA DE FORMATO: Al escribir cantidades de dinero, usa ÚNICAMENTE el símbolo $ seguido del número (ej: $17,875.72). NUNCA escribas códigos de moneda como USD, MXN, EUR ni ningún otro después del número. Esto es obligatorio en todo el reporte.
+3. PLAN DE ACCIÓN RECOMENDADO DE 3 PASOS:
+   - Ofrece soluciones y responde a las dudas del usuario con base en sus datos reales.
+   - Da un plan de acción sugerido de 3 pasos para la siguiente semana vinculando tiempo, finanzas y metas de pilar.
+   - Recuerda usar siempre el formato de moneda requerido ($ seguido del número, sin códigos de moneda tipo MXN o USD).
 `;
 
         const response = await ai.models.generateContent({

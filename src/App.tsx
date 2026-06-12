@@ -83,6 +83,7 @@ export default function App() {
   const [pilares, setPilares] = useState<Pilar[]>([]);
   const [correlacionesPilares, setCorrelacionesPilares] = useState<CorrelacionPilar[]>([]);
   const [micrometas, setMicrometas] = useState<Micrometa[]>([]);
+  const [prestamos, setPrestamos] = useState<Prestamo[]>([]);
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "sheets" | "ia" | "pilares" | "perfil" | "workspace">("dashboard");
   const [loadingData, setLoadingData] = useState<boolean>(false);
@@ -238,6 +239,7 @@ export default function App() {
             setPilares(data.pilares || []);
             setCorrelacionesPilares(data.correlacionesPilares || []);
             setMicrometas(data.micrometas || []);
+            setPrestamos(data.prestamos || []);
             setIsInitialLoadComplete(true);
           }
         }
@@ -266,6 +268,7 @@ export default function App() {
         setPilares(data.pilares || []);
         setCorrelacionesPilares(data.correlacionesPilares || []);
         setMicrometas(data.micrometas || []);
+        setPrestamos(data.prestamos || []);
       }
     } catch (err) {
       console.error("Error refreshing user data:", err);
@@ -340,6 +343,8 @@ export default function App() {
     setDeudas([]);
     setMetas([]);
     setEventos([]);
+    setMicrometas([]);
+    setPrestamos([]);
     setIsInitialLoadComplete(false);
   };
 
@@ -563,11 +568,13 @@ export default function App() {
                   deudas={deudas} 
                   metas={metas}
                   eventos={eventos}
+                  prestamos={prestamos}
                   setIngresos={setIngresos}
                   setEgresos={setEgresos}
                   setDeudas={setDeudas}
                   setMetas={setMetas}
                   setEventos={setEventos}
+                  setPrestamos={setPrestamos}
                   resetToInitial={handleResetApplicationData}
                   pilares={pilares}
                 />

@@ -11,7 +11,8 @@ import {
   TipoTarjeta,
   EstadoMeta,
   Usuario,
-  Pilar
+  Pilar,
+  Prestamo
 } from "../types";
 import { 
   Plus, 
@@ -37,11 +38,13 @@ interface SheetsSimulatorTabProps {
   deudas: Deuda[]; // cards (debit and credit)
   metas: MetaPilar[];
   eventos: AgendaEvento[]; // activities
+  prestamos: Prestamo[];
   setIngresos: React.Dispatch<React.SetStateAction<Ingreso[]>>;
   setEgresos: React.Dispatch<React.SetStateAction<Egreso[]>>;
   setDeudas: React.Dispatch<React.SetStateAction<Deuda[]>>;
   setMetas: React.Dispatch<React.SetStateAction<MetaPilar[]>>;
   setEventos: React.Dispatch<React.SetStateAction<AgendaEvento[]>>;
+  setPrestamos: React.Dispatch<React.SetStateAction<Prestamo[]>>;
   resetToInitial: () => void;
   pilares: Pilar[];
 }
@@ -54,15 +57,17 @@ export default function SheetsSimulatorTab({
   deudas,
   metas,
   eventos,
+  prestamos,
   setIngresos,
   setEgresos,
   setDeudas,
   setMetas,
   setEventos,
+  setPrestamos,
   resetToInitial,
   pilares
 }: SheetsSimulatorTabProps) {
-  const [activeSheet, setActiveSheet] = useState<"B" | "C" | "D" | "E">("B");
+  const [activeSheet, setActiveSheet] = useState<"B" | "C" | "D" | "E" | "P">("B");
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Custom Confirm dialog state
@@ -125,7 +130,15 @@ export default function SheetsSimulatorTab({
     Subcategoria: "",
     Monto: "",
     Metodo_Pago: "",
-    Tipo_Gasto: TipoGasto.VARIABLE
+    Tipo_Gasto: TipoGasto.VARIABLE,
+    Recurrente: false
+  });
+
+  const [prestamoForm, setPrestamoForm] = useState({
+    Monto_Prestado: "",
+    Monto_A_Pagar: "",
+    Fecha_Inicio: todayStr,
+    Fecha_Limite: todayStr
   });
 
   const [eventoForm, setEventoForm] = useState({
@@ -254,7 +267,8 @@ export default function SheetsSimulatorTab({
       Subcategoria: egresoForm.Subcategoria || "Unassigned",
       Monto: parseFloat(egresoForm.Monto),
       Metodo_Pago: egresoForm.Metodo_Pago || "Hojas Directas",
-      Tipo_Gasto: egresoForm.Tipo_Gasto
+      Tipo_Gasto: egresoForm.Tipo_Gasto,
+      Recurrente: egresoForm.Recurrente ? 1 : 0
     };
 
     try {
@@ -272,7 +286,8 @@ export default function SheetsSimulatorTab({
           Subcategoria: "",
           Monto: "",
           Metodo_Pago: "",
-          Tipo_Gasto: TipoGasto.VARIABLE
+          Tipo_Gasto: TipoGasto.VARIABLE,
+          Recurrente: false
         });
         setShowAddForm(false);
       }
@@ -280,6 +295,44 @@ export default function SheetsSimulatorTab({
       console.error(err);
     }
   };
+
+  const handleAddPrestamo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prestamoForm.Monto_Prestado || !prestamoForm.Monto_A_Pagar) return;
+
+    const parseMontoPrestado = parseFloat(prestamoForm.Monto_Prestado) || 0;
+    const parseMontoAPagar = parseFloat(prestamoForm.Monto_A_Pagar) || 0;
+
+    const newRecord: Prestamo = {
+      ID_Usuario: activeUser.ID_Usuario,
+      ID_Prestamo: generateUuid("loan"),
+      Monto_Prestado: parseMontoPrestado,
+      Monto_A_Pagar: parseMontoAPagar,
+      Fecha_Inicio: prestamoForm.Fecha_Inicio,
+      Fecha_Limite: prestamoForm.Fecha_Limite
+    };
+
+    try {
+      const res = await fetch("/api/prestamos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newRecord)
+      });
+      if (res.ok) {
+        setPrestamos((prev) => [newRecord, ...prev]);
+        setPrestamoForm({
+          Monto_Prestado: "",
+          Monto_A_Pagar: "",
+          Fecha_Inicio: todayStr,
+          Fecha_Limite: todayStr
+        });
+        setShowAddForm(false);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
 
   const handleAddEvento = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -368,7 +421,7 @@ export default function SheetsSimulatorTab({
     );
   };
 
-  const executeDeleteItem = async (type: "ingresos" | "egresos" | "deudas" | "eventos", id: string) => {
+  const executeDeleteItem = async (type: "ingresos" | "egresos" | "deudas" | "eventos" | "prestamos", id: string) => {
     try {
       if (type === "eventos") {
         const eventToDelete = eventos.find(ev => ev.ID_Actividad === id);
@@ -415,21 +468,24 @@ export default function SheetsSimulatorTab({
         if (type === "egresos") setEgresos(prev => prev.filter(e => e.ID_Egreso !== id));
         if (type === "deudas") setDeudas(prev => prev.filter(d => d.ID_Instrumento !== id));
         if (type === "eventos") setEventos(prev => prev.filter(ev => ev.ID_Actividad !== id));
+        if (type === "prestamos") setPrestamos(prev => prev.filter(p => p.ID_Prestamo !== id));
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const handleDeleteItem = (type: "ingresos" | "egresos" | "deudas" | "eventos", id: string) => {
+  const handleDeleteItem = (type: "ingresos" | "egresos" | "deudas" | "eventos" | "prestamos", id: string) => {
     const itemConcept = type === "ingresos" ? ingresos.find(i => i.ID_Ingreso === id)?.Concepto
       : type === "egresos" ? egresos.find(e => e.ID_Egreso === id)?.Concepto
       : type === "deudas" ? deudas.find(d => d.ID_Instrumento === id)?.Nombre_Tarjeta
+      : type === "prestamos" ? `Préstamo de $${prestamos.find(p => p.ID_Prestamo === id)?.Monto_Prestado}`
       : eventos.find(ev => ev.ID_Actividad === id)?.Titulo_Actividad || eventos.find(ev => ev.ID_Actividad === id)?.Titulo;
       
     const typeLabel = type === "ingresos" ? "ingreso"
       : type === "egresos" ? "gasto"
       : type === "deudas" ? "cuenta/tarjeta"
+      : type === "prestamos" ? "préstamo"
       : "actividad";
 
     setConfirmDialog({
@@ -824,6 +880,19 @@ export default function SheetsSimulatorTab({
           <Calendar className="w-3.5 h-3.5 text-amber-500" />
           <span>Actividades ({eventos.length})</span>
         </button>
+
+        <button
+          id="sheet-tab-p"
+          onClick={() => { setActiveSheet("P"); setShowAddForm(false); }}
+          className={`px-4 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+            activeSheet === "P" 
+              ? "bg-purple-500/10 border-purple-500/30 text-purple-500 font-bold" 
+              : darkMode ? "bg-stone-900/20 border-stone-900 text-stone-400 hover:text-stone-300" : "bg-white border-stone-150 text-stone-600 hover:bg-stone-50"
+          }`}
+        >
+          <Coins className="w-3.5 h-3.5 text-purple-500" />
+          <span>Préstamos ({prestamos.length})</span>
+        </button>
       </div>
 
       {/* Grid container redesigned into card-list (No Excel spreadsheet look) */}
@@ -941,7 +1010,7 @@ export default function SheetsSimulatorTab({
             )}
 
             {activeSheet === "D" && (
-              <form onSubmit={handleAddEgreso} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+              <form onSubmit={handleAddEgreso} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-bold text-stone-500">Fecha</label>
                   <input type="date" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={egresoForm.Fecha} onChange={(e)=>setEgresoForm({...egresoForm, Fecha: e.target.value})} />
@@ -962,7 +1031,38 @@ export default function SheetsSimulatorTab({
                   <label className="text-[9px] uppercase font-bold text-stone-500">Monto</label>
                   <input type="number" placeholder="0.00" className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={egresoForm.Monto} onChange={(e)=>setEgresoForm({...egresoForm, Monto: e.target.value})} />
                 </div>
-                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-xs cursor-pointer md:col-span-4 transition-all shadow-md">Registrar</button>
+                <div className="flex items-center justify-between p-3 rounded-xl border bg-white border-stone-300 dark:bg-stone-900 dark:border-stone-850 h-[42px] mb-0.5">
+                  <span className="text-[9px] uppercase font-bold text-stone-500">¿Recurrente?</span>
+                  <input
+                    type="checkbox"
+                    checked={egresoForm.Recurrente}
+                    onChange={(e) => setEgresoForm({...egresoForm, Recurrente: e.target.checked})}
+                    className="w-4 h-4 cursor-pointer text-teal-650 rounded focus:ring-teal-500"
+                  />
+                </div>
+                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-xs cursor-pointer md:col-span-5 transition-all shadow-md">Registrar</button>
+              </form>
+            )}
+
+            {activeSheet === "P" && (
+              <form onSubmit={handleAddPrestamo} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Monto Prestado</label>
+                  <input type="number" placeholder="0.00" required className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={prestamoForm.Monto_Prestado} onChange={(e)=>setPrestamoForm({...prestamoForm, Monto_Prestado: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Monto a Pagar</label>
+                  <input type="number" placeholder="0.00" required className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={prestamoForm.Monto_A_Pagar} onChange={(e)=>setPrestamoForm({...prestamoForm, Monto_A_Pagar: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Fecha Inicio</label>
+                  <input type="date" required className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={prestamoForm.Fecha_Inicio} onChange={(e)=>setPrestamoForm({...prestamoForm, Fecha_Inicio: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] uppercase font-bold text-stone-500">Fecha Límite</label>
+                  <input type="date" required className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-850 dark:text-white" value={prestamoForm.Fecha_Limite} onChange={(e)=>setPrestamoForm({...prestamoForm, Fecha_Limite: e.target.value})} />
+                </div>
+                <button type="submit" className="py-2.5 px-4 font-bold rounded-xl bg-teal-500 hover:bg-teal-650 text-white text-xs cursor-pointer transition-all shadow-md">Registrar</button>
               </form>
             )}
 
@@ -1198,6 +1298,9 @@ export default function SheetsSimulatorTab({
                     <span className="px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-400">{item.Categoria_Pilar}</span>
                     <span className="text-[10px] font-mono text-stone-500">{item.Fecha}</span>
                     <span className="text-[10px] text-stone-500">({item.Metodo_Pago})</span>
+                    {item.Recurrente === 1 && (
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-teal-500/10 text-teal-400">Recurrente</span>
+                    )}
                   </div>
                   <h4 className={`text-xs font-semibold ${darkMode ? "text-white" : "text-stone-900"}`}>{item.Concepto}</h4>
                 </div>
@@ -1210,6 +1313,50 @@ export default function SheetsSimulatorTab({
                 </div>
               </div>
             ))
+          )}
+
+          {activeSheet === "P" && (
+            prestamos.length === 0 ? <p className="text-xs text-stone-500 py-6 text-center">No hay préstamos registrados.</p> :
+            prestamos.map(item => {
+              const excedente = item.Monto_A_Pagar - item.Monto_Prestado;
+              const tasa = item.Monto_Prestado > 0 ? (excedente / item.Monto_Prestado) * 100 : 0;
+              return (
+                <div key={item.ID_Prestamo} className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${
+                  darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"
+                }`}>
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-purple-500/10 text-purple-400">Préstamo</span>
+                      <span className="text-[10px] font-mono text-stone-500">Inicio: {item.Fecha_Inicio} | Límite: {item.Fecha_Limite}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs">
+                      <div>
+                        <span className="text-stone-500 text-[9px] block uppercase font-bold">Monto Prestado</span>
+                        <span className={`font-semibold font-mono ${darkMode ? "text-white" : "text-stone-900"}`}>{formatAmount(item.Monto_Prestado)}</span>
+                      </div>
+                      <div>
+                        <span className="text-stone-500 text-[9px] block uppercase font-bold">Monto a Pagar</span>
+                        <span className={`font-semibold font-mono ${darkMode ? "text-white" : "text-stone-900"}`}>{formatAmount(item.Monto_A_Pagar)}</span>
+                      </div>
+                      <div>
+                        <span className="text-stone-500 text-[9px] block uppercase font-bold">Excedente a Pagar</span>
+                        <span className="text-rose-500 font-semibold font-mono">{formatAmount(excedente)}</span>
+                      </div>
+                      <div>
+                        <span className="text-stone-500 text-[9px] block uppercase font-bold">Tasa de Interés</span>
+                        <span className="text-amber-500 font-semibold">{tasa.toFixed(2)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => handleDeleteItem("prestamos", item.ID_Prestamo)} className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-xl cursor-pointer transition-all">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
           )}
 
           {activeSheet === "E" && (

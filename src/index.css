@@ -58,3 +58,27 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(120, 113, 108, 0.5);
 }
+
+/* Custom calendar views for mobile/desktop to ensure display rules apply correctly */
+@media (max-width: 767px) {
+  .calendar-desktop-view {
+    display: none !important;
+  }
+}
+@media (min-width: 768px) {
+  .calendar-desktop-view {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .calendar-mobile-view {
+    display: flex !important;
+  }
+}
+@media (min-width: 768px) {
+  .calendar-mobile-view {
+    display: none !important;
+  }
+}
+

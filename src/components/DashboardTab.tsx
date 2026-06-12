@@ -1585,11 +1585,13 @@ export default function DashboardTab({
                 onClick={() => {
                   if (hasEvents) {
                     setSelectedDateStr(cDay.dateStr);
-                    setShowDayModal(true); // Open activities floating modal
+                    if (dateEvents.length > 0) {
+                      setShowDayModal(true); // Open activities floating modal if there are events
+                    }
                   }
                 }}
-                className={`min-h-[110px] p-2.5 border flex flex-col justify-start transition-all cursor-pointer ${
-                  !hasEvents ? "bg-transparent border-transparent cursor-default"
+                className={`min-h-[40px] md:min-h-[110px] p-1 md:p-2.5 border flex flex-col justify-start transition-all cursor-pointer ${
+                  !hasEvents ? "bg-transparent border-transparent cursor-default pointer-events-none"
                   : isSelected 
                     ? darkMode
                       ? "bg-stone-900/60 border-teal-500/50"
@@ -1603,21 +1605,21 @@ export default function DashboardTab({
                 <div className="flex items-center justify-between w-full mb-1">
                   {hasEvents && (
                     isSelected ? (
-                      <span className="w-5 h-5 rounded-full bg-teal-500 text-white flex items-center justify-center text-[10px] font-bold">
+                      <span className="w-4.5 h-4.5 md:w-5 md:h-5 rounded-full bg-teal-500 text-white flex items-center justify-center text-[9px] md:text-[10px] font-bold mx-auto md:mx-0">
                         {cDay.dayNum}
                       </span>
                     ) : (
-                      <span className={`text-[10px] font-bold ${
+                      <span className={`text-[9px] md:text-[10px] font-bold ${
                         cDay.dayNum === 1 ? (darkMode ? "text-stone-400" : "text-stone-600") : (darkMode ? "text-stone-500" : "text-stone-400")
                       }`}>
-                        {cDay.dayNum === 1 ? `1 de ${monthNames[currentMonth].slice(0, 3).toLowerCase()}` : cDay.dayNum}
+                        {cDay.dayNum === 1 ? (window.innerWidth < 768 ? "1" : `1 de ${monthNames[currentMonth].slice(0, 3).toLowerCase()}`) : cDay.dayNum}
                       </span>
                     )
                   )}
                 </div>
                 
-                {/* Event list stacked vertically */}
-                <div className="space-y-1 overflow-hidden w-full flex-grow flex flex-col justify-start">
+                {/* Desktop View: Event list stacked vertically */}
+                <div className="calendar-desktop-view space-y-1 overflow-hidden w-full flex-grow flex-col justify-start">
                   {dateEvents.slice(0, 3).map((e, index) => {
                     const dotColorClass = 
                       e.Color === "green" ? "bg-emerald-500"
@@ -1658,6 +1660,26 @@ export default function DashboardTab({
                     <div className="text-[8px] font-bold text-stone-500 text-left pl-3 leading-none mt-0.5">
                       +{dateEvents.length - 3} más
                     </div>
+                  )}
+                </div>
+
+                {/* Mobile View: Row of colorful dots */}
+                <div className="calendar-mobile-view flex-wrap gap-0.5 mt-1 justify-center w-full">
+                  {dateEvents.slice(0, 4).map((e, index) => {
+                    const dotColorClass = 
+                      e.Color === "green" ? "bg-emerald-500"
+                      : e.Color === "blue" || e.Color === "indigo" ? "bg-sky-400"
+                      : e.Color === "orange" ? "bg-amber-500"
+                      : e.Color === "purple" ? "bg-purple-400"
+                      : "bg-rose-500";
+                    return (
+                      <span key={index} className={`w-1 h-1 rounded-full ${dotColorClass}`} />
+                    );
+                  })}
+                  {dateEvents.length > 4 && (
+                    <span className="text-[7px] font-extrabold text-stone-500 leading-none">
+                      +
+                    </span>
                   )}
                 </div>
               </div>

@@ -273,7 +273,21 @@ export function initDatabase() {
         FOREIGN KEY(ID_Micrometa) REFERENCES micrometas(ID_Micrometa) ON DELETE CASCADE
       )
     `);
-    // Execute safe run-time migrations for eventos and micrometas
+
+    // 11. Prestamos (Loans) Table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS prestamos (
+        ID_Prestamo TEXT PRIMARY KEY,
+        ID_Usuario TEXT,
+        Monto_Prestado REAL NOT NULL,
+        Monto_A_Pagar REAL NOT NULL,
+        Fecha_Inicio TEXT NOT NULL,
+        Fecha_Limite TEXT NOT NULL,
+        FOREIGN KEY(ID_Usuario) REFERENCES usuarios(ID_Usuario) ON DELETE CASCADE
+      )
+    `);
+
+    // Execute safe run-time migrations for eventos, micrometas and egresos
     db.run("ALTER TABLE eventos ADD COLUMN Gasto_Pendiente INTEGER DEFAULT 0", () => {});
     db.run("ALTER TABLE eventos ADD COLUMN Monto_Gasto REAL DEFAULT 0", () => {});
     db.run("ALTER TABLE eventos ADD COLUMN ID_Tarjeta_Gasto TEXT", () => {});
@@ -283,6 +297,7 @@ export function initDatabase() {
 
     db.run("ALTER TABLE micrometas ADD COLUMN Recurrencia TEXT", () => {});
     db.run("ALTER TABLE micrometas ADD COLUMN ID_Padre_Recurrente TEXT", () => {});
+    db.run("ALTER TABLE egresos ADD COLUMN Recurrente INTEGER DEFAULT 0", () => {});
 
   });
 }

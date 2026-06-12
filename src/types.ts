@@ -111,6 +111,17 @@ export interface Egreso {
   Monto: number;
   Metodo_Pago: string; // Alias for UI displaying Card name or Cash/Efectivo
   Tipo_Gasto: TipoGasto;
+  Recurrente?: number; // 0 or 1
+}
+
+// Representing Loans / Préstamos
+export interface Prestamo {
+  ID_Prestamo: string;
+  ID_Usuario: string;
+  Monto_Prestado: number;
+  Monto_A_Pagar: number;
+  Fecha_Inicio: string; // YYYY-MM-DD
+  Fecha_Limite: string; // YYYY-MM-DD
 }
 
 export enum EstadoMeta {

@@ -310,6 +310,7 @@ async function startServer() {
       await queryRun("DELETE FROM correlaciones_pilares WHERE ID_Usuario = ?", [userId]);
       await queryRun("DELETE FROM correlaciones_micrometas WHERE ID_Usuario = ?", [userId]);
       await queryRun("DELETE FROM pilares WHERE ID_Usuario = ?", [userId]);
+      await queryRun("DELETE FROM prestamos WHERE ID_Usuario = ?", [userId]);
 
       // Re-seed essential structure
       seedUserPilares(userId);
@@ -474,6 +475,7 @@ async function startServer() {
       const correlacionesPilares = await queryAll("SELECT * FROM correlaciones_pilares WHERE ID_Usuario = ?", [userId]);
       const micrometasRaw = await queryAll("SELECT * FROM micrometas WHERE ID_Usuario = ?", [userId]);
       const corrMicrometas = await queryAll("SELECT * FROM correlaciones_micrometas WHERE ID_Usuario = ?", [userId]);
+      const prestamos = await queryAll("SELECT * FROM prestamos WHERE ID_Usuario = ?", [userId]);
 
       const micrometas = micrometasRaw.map((mm: any) => {
         const matchingCorr = corrMicrometas.filter((c: any) => c.ID_Micrometa === mm.ID_Micrometa);
@@ -498,7 +500,7 @@ async function startServer() {
         Gasto_Pendiente: ev.Gasto_Pendiente === 1
       }));
 
-      res.json({ ingresos, egresos, deudas, metas, eventos, pilares, correlacionesPilares, micrometas });
+      res.json({ ingresos, egresos, deudas, metas, eventos, pilares, correlacionesPilares, micrometas, prestamos });
     } catch (error: any) {
       console.error("Error fetching data:", error);
       res.status(500).json({ error: error.message || "Ocurrió un error al obtener los datos." });
@@ -533,11 +535,11 @@ async function startServer() {
   // Egresos
   app.post("/api/egresos", async (req, res) => {
     try {
-      const { ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto } = req.body;
+      const { ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto, Recurrente } = req.body;
       await queryRun(`
-        INSERT INTO egresos (ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto]);
+        INSERT INTO egresos (ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto, Recurrente)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [ID_Egreso, ID_Usuario, ID_Actividad_Origen, ID_Tarjeta_Utilizada, Fecha, Concepto, Categoria_Pilar, Subcategoria, Monto, Metodo_Pago, Tipo_Gasto, Recurrente ? 1 : 0]);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -584,6 +586,43 @@ async function startServer() {
   app.delete("/api/deudas/:id", async (req, res) => {
     try {
       await queryRun("DELETE FROM deudas WHERE ID_Instrumento = ?", [req.params.id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Prestamos (Loans)
+  app.post("/api/prestamos", async (req, res) => {
+    try {
+      const { ID_Prestamo, ID_Usuario, Monto_Prestado, Monto_A_Pagar, Fecha_Inicio, Fecha_Limite } = req.body;
+      await queryRun(`
+        INSERT INTO prestamos (ID_Prestamo, ID_Usuario, Monto_Prestado, Monto_A_Pagar, Fecha_Inicio, Fecha_Limite)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [ID_Prestamo, ID_Usuario, parseFloat(Monto_Prestado), parseFloat(Monto_A_Pagar), Fecha_Inicio, Fecha_Limite]);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put("/api/prestamos/:id", async (req, res) => {
+    try {
+      const { Monto_Prestado, Monto_A_Pagar, Fecha_Inicio, Fecha_Limite } = req.body;
+      await queryRun(`
+        UPDATE prestamos
+        SET Monto_Prestado = ?, Monto_A_Pagar = ?, Fecha_Inicio = ?, Fecha_Limite = ?
+        WHERE ID_Prestamo = ?
+      `, [parseFloat(Monto_Prestado), parseFloat(Monto_A_Pagar), Fecha_Inicio, Fecha_Limite, req.params.id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/prestamos/:id", async (req, res) => {
+    try {
+      await queryRun("DELETE FROM prestamos WHERE ID_Prestamo = ?", [req.params.id]);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

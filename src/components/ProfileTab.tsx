@@ -1,14 +1,84 @@
 import React, { useState } from "react";
-import { User, Lock, Sliders, ShieldCheck, Mail, Edit3 } from "lucide-react";
+import { User, Lock, Sliders, ShieldCheck, Mail, Edit3, Cloud, Sparkles } from "lucide-react";
 import { Usuario } from "../types";
 
 interface ProfileTabProps {
   darkMode: boolean;
   activeUser: Usuario;
+  googleClientId: string;
   onProfileUpdate: (updatedUser: Usuario) => void;
+  onLogout?: () => void;
+  onResetData?: () => void;
 }
 
-export default function ProfileTab({ darkMode, activeUser, onProfileUpdate }: ProfileTabProps) {
+export default function ProfileTab({ darkMode, activeUser, googleClientId, onProfileUpdate, onLogout, onResetData }: ProfileTabProps) {
+  // Google sync state
+  const [accessToken, setAccessToken] = useState<string>(() => {
+    return localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`) || "";
+  });
+  const [isConnected, setIsConnected] = useState<boolean>(() => {
+    return !!localStorage.getItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+  });
+  const [googleUser, setGoogleUser] = useState<{ name: string; email: string; picture?: string } | null>(() => {
+    const saved = localStorage.getItem(`pilar5_g_user_${activeUser.ID_Usuario}`);
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [syncMessage, setSyncMessage] = useState("");
+  const [syncError, setSyncError] = useState("");
+
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {}
+  });
+
+  const handleGoogleOAuthDirect = () => {
+    const redirectUri = window.location.origin + "/";
+    const scope = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile email openid https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file";
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=consent`;
+
+    window.location.href = authUrl;
+  };
+
+  const handleDisconnect = async () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Desconectar Cuenta Google",
+      message: "¿Seguro que deseas desconectar tu cuenta de Google Workspace del SaaS? Esto desactivará la sincronización en tiempo real.",
+      onConfirm: async () => {
+        try {
+          await fetch("/api/auth/google/unlink", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: activeUser.ID_Usuario })
+          });
+        } catch (err) {
+          console.error("Error unlinking Google from server:", err);
+        }
+        setAccessToken("");
+        setIsConnected(false);
+        setGoogleUser(null);
+        localStorage.removeItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
+        localStorage.removeItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
+        localStorage.removeItem(`pilar5_g_user_${activeUser.ID_Usuario}`);
+        localStorage.removeItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
+        
+        onProfileUpdate({
+          ...activeUser,
+          Correo_Google: ""
+        });
+        setSyncMessage("Cuenta de Google desconectada.");
+      }
+    });
+  };
+
   // Profile edit state
   const [nombre, setNombre] = useState(activeUser.Nombre_Usuario || "");
   const [correoG, setCorreoG] = useState(activeUser.Correo_Google || "");
@@ -150,7 +220,7 @@ export default function ProfileTab({ darkMode, activeUser, onProfileUpdate }: Pr
               Mi Perfil y Datos Personales
             </h2>
             <p className="text-xs text-stone-500 mt-1">
-              UUID de inquilino: <span className="font-mono">{activeUser.ID_Usuario}</span>
+              Cuenta: <span className="font-mono">{activeUser.Gmail_Sincronizado || activeUser.Correo_Google}</span>
             </p>
           </div>
         </div>
@@ -164,6 +234,82 @@ export default function ProfileTab({ darkMode, activeUser, onProfileUpdate }: Pr
             Plan: {activeUser.Plan_Suscripcion}
           </span>
         </div>
+      </div>
+
+      {/* Google Workspace Sync Section */}
+      <div className={`p-6 rounded-[2.5rem] border ${
+        darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
+      } space-y-4`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-teal-500/10 text-teal-500 rounded-2xl border border-teal-500/15">
+              <Cloud className="w-5 h-5 text-teal-500" />
+            </div>
+            <div>
+              <h3 className={`text-sm font-bold ${darkMode ? "text-white" : "text-stone-900"}`}>
+                Sincronización Avanzada Google Workspace
+              </h3>
+              <p className="text-xs text-stone-500 mt-0.5">
+                Vincula tu cuenta para agendar tus metas, actividades y tareas automáticamente.
+              </p>
+            </div>
+          </div>
+
+          {isConnected ? (
+            <button
+              onClick={handleDisconnect}
+              className="px-4 py-2 text-xs font-bold text-rose-500 hover:text-white border border-rose-500/35 hover:bg-rose-500 rounded-xl transition-all cursor-pointer"
+            >
+              Desconectar Cuenta Google
+            </button>
+          ) : (
+            <div className="flex flex-wrap gap-2.5">
+              <button
+                onClick={handleGoogleOAuthDirect}
+                className="px-4 py-2 text-xs font-bold text-white bg-teal-500 hover:bg-teal-650 rounded-xl transition-all cursor-pointer shadow-md flex items-center gap-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Conectar Google Workspace</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {syncMessage && (
+          <div className="p-3 rounded-2xl bg-teal-500/10 text-teal-400 text-xs font-semibold border border-teal-500/15">
+            {syncMessage}
+          </div>
+        )}
+        {syncError && (
+          <div className="p-3 rounded-2xl bg-rose-500/10 text-rose-500 text-xs font-semibold border border-rose-500/15">
+            {syncError}
+          </div>
+        )}
+
+        {isConnected && googleUser && (
+          <div className={`p-4 rounded-2xl border ${
+            darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50/70 border-stone-200"
+          } flex flex-col sm:flex-row sm:items-center justify-between gap-4`}>
+            <div className="flex items-center gap-3">
+              {googleUser.picture ? (
+                <img src={googleUser.picture} alt="Avatar" className="w-10 h-10 rounded-full border border-stone-300 dark:border-stone-800" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-stone-300 dark:bg-stone-800 text-stone-600 dark:text-stone-400 flex items-center justify-center font-bold">
+                  {googleUser.name.charAt(0)}
+                </div>
+              )}
+              <div>
+                <p className={`text-xs font-bold ${darkMode ? "text-white" : "text-stone-900"}`}>{googleUser.name}</p>
+                <p className="text-[10px] text-stone-500">{googleUser.email}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/15">
+                Sincronización Activa
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -352,6 +498,69 @@ export default function ProfileTab({ darkMode, activeUser, onProfileUpdate }: Pr
         </div>
 
       </div>
+
+      {/* Account Actions Section */}
+      <div className={`p-6 rounded-[2.5rem] border ${
+        darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
+      } space-y-4`}>
+        <h3 className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${darkMode ? "text-stone-300" : "text-stone-850"}`}>
+          <Sliders className="w-4 h-4 text-rose-500" />
+          <span>Acciones de la Cuenta</span>
+        </h3>
+        
+        <div className="flex flex-wrap gap-4">
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="px-5 py-2.5 rounded-2xl bg-rose-500 hover:bg-rose-650 text-white text-xs font-bold transition-all cursor-pointer shadow-md flex items-center gap-2"
+            >
+              Cerrar Sesión Activa
+            </button>
+          )}
+
+          {onResetData && (
+            <button
+              onClick={onResetData}
+              className="px-5 py-2.5 rounded-2xl border border-rose-500/35 hover:bg-rose-500/10 text-rose-500 text-xs font-bold transition-all cursor-pointer"
+            >
+              Reiniciar Datos de la Cuenta
+            </button>
+          )}
+        </div>
+      </div>
+
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-stone-950/80 backdrop-blur-sm" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}></div>
+          <div className={`relative w-full max-w-sm p-6 rounded-[2rem] border shadow-2xl transition-all ${
+            darkMode ? "bg-stone-900 border-stone-800 text-white" : "bg-white border-stone-200 text-stone-900"
+          }`}>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-rose-500 mb-2">{confirmDialog.title}</h3>
+            <p className="text-xs text-stone-500 mb-6 leading-relaxed">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  darkMode 
+                    ? "border-stone-800 text-stone-400 hover:text-white hover:bg-stone-850" 
+                    : "border-stone-200 text-stone-500 hover:text-stone-900 hover:bg-stone-100"
+                }`}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={() => {
+                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                  confirmDialog.onConfirm();
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-500 hover:bg-rose-650 text-white transition-all cursor-pointer shadow-md"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

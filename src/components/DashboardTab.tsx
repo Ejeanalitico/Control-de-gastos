@@ -10,7 +10,8 @@ import {
   TipoGasto,
   TipoTarjeta,
   EstadoMeta,
-  Micrometa
+  Micrometa,
+  Pilar
 } from "../types";
 import { 
   BarChart, 
@@ -41,6 +42,7 @@ import {
   ChevronLeft,
   ChevronRight,
   PlusCircle,
+  Bell,
   HelpCircle,
   FileText
 } from "lucide-react";
@@ -61,6 +63,8 @@ interface DashboardTabProps {
   setMicrometas: React.Dispatch<React.SetStateAction<Micrometa[]>>;
   activeUser: Usuario;
   currency: string;
+  isInitialLoadComplete: boolean;
+  pilares: Pilar[];
 }
 
 export default function DashboardTab({
@@ -78,8 +82,17 @@ export default function DashboardTab({
   micrometas,
   setMicrometas,
   activeUser,
-  currency
+  currency,
+  isInitialLoadComplete,
+  pilares
 }: DashboardTabProps) {
+
+  const eventosRef = React.useRef(eventos);
+  eventosRef.current = eventos;
+  const metasRef = React.useRef(metas);
+  metasRef.current = metas;
+  const micrometasRef = React.useRef(micrometas);
+  micrometasRef.current = micrometas;
 
   const getValidGoogleToken = () => {
     const gToken = localStorage.getItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
@@ -87,7 +100,7 @@ export default function DashboardTab({
     const expiresAt = localStorage.getItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
 
     if (gToken) {
-      const isExpired = expiresAt ? Date.now() > parseInt(expiresAt) : true;
+      const isExpired = expiresAt ? Date.now() > parseInt(expiresAt) : false;
       if (isExpired) {
         localStorage.removeItem(`pilar5_g_token_${activeUser.ID_Usuario}`);
         localStorage.removeItem(`pilar5_g_connected_${activeUser.ID_Usuario}`);
@@ -113,7 +126,7 @@ export default function DashboardTab({
 
   // --- FORM STATE ---
   const [titulo, setTitulo] = useState<string>("");
-  const [pilar, setPilar] = useState<CategoriaPilar>(CategoriaPilar.SALUD);
+  const [pilar, setPilar] = useState<string>("");
   const [tipoAgenda, setTipoAgenda] = useState<string>("Agenda_Personal");
   const [descripcion, setDescripcion] = useState<string>("");
   const [horaInicio, setHoraInicio] = useState<string>("10:00");
@@ -138,13 +151,26 @@ export default function DashboardTab({
   const [showDayModal, setShowDayModal] = useState<boolean>(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editTitulo, setEditTitulo] = useState<string>("");
-  const [editPilar, setEditPilar] = useState<CategoriaPilar>(CategoriaPilar.SALUD);
+  const [editPilar, setEditPilar] = useState<string>("");
   const [editDesc, setEditDesc] = useState<string>("");
   const [editHoraInicio, setEditHoraInicio] = useState<string>("10:00");
   const [editHoraFin, setEditHoraFin] = useState<string>("11:00");
   const [editFecha, setEditFecha] = useState<string>("");
   const [editSuccess, setEditSuccess] = useState<string>("");
   const [editError, setEditError] = useState<string>("");
+
+  // Custom Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {}
+  });
 
   const selectedMeta = metas.find(m => m.ID_Meta === selectedMetaId);
   useEffect(() => {
@@ -169,6 +195,8 @@ export default function DashboardTab({
 
   // --- GOOGLE CALENDAR SYNC EFFECT ---
   useEffect(() => {
+    if (!isInitialLoadComplete) return;
+
     const fetchGoogleCalendar = async () => {
       const gToken = getValidGoogleToken();
       if (!gToken) {
@@ -178,13 +206,38 @@ export default function DashboardTab({
 
       setGcalLoading(true);
       try {
-        const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=25", {
+        const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events?showDeleted=true&maxResults=100", {
           headers: { Authorization: `Bearer ${gToken}` }
         });
         if (res.ok) {
           const data = await res.json();
           const items = data.items || [];
-          setGoogleEvents(items.map((it: any) => ({
+          
+          const deletedKey = `pilar5_deleted_gcal_${activeUser.ID_Usuario}`;
+          const deletedList = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+
+          // Sweep and delete stale Google Calendar events that the user deleted locally
+          for (const it of items) {
+            if (it.status !== "cancelled" && deletedList.includes(it.id)) {
+              console.log(`[SYNC] Auto-deleting stale Google Calendar event from Google account: ${it.id}`);
+              try {
+                const isRecur = it.id.includes("_");
+                await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${it.id}`, {
+                  method: isRecur ? "PATCH" : "DELETE",
+                  headers: { 
+                    Authorization: `Bearer ${gToken}`,
+                    ...(isRecur ? { "Content-Type": "application/json" } : {})
+                  },
+                  body: isRecur ? JSON.stringify({ status: "cancelled" }) : undefined
+                });
+              } catch (err) {
+                console.error("Auto-delete stale Google event failed:", err);
+              }
+            }
+          }
+
+          const activeGcalEvents = items.filter((it: any) => it.status !== "cancelled" && !deletedList.includes(it.id));
+          setGoogleEvents(activeGcalEvents.map((it: any) => ({
             id: it.id,
             summary: it.summary || "Evento Google Calendar",
             description: it.description || "",
@@ -192,23 +245,193 @@ export default function DashboardTab({
             end: it.end?.dateTime || it.end?.date || "",
             color: "indigo"
           })));
+
+          let didChange = false;
+          for (const it of items) {
+            const isCancelled = it.status === "cancelled";
+            
+            const matchEvent = eventosRef.current.find(e => e.ID_Evento === it.id || e.ID_Actividad === it.id);
+            const matchMeta = metasRef.current.find(m => m.ID_Evento_Calendario === it.id);
+            const matchMm = micrometasRef.current.find(mm => mm.ID_Evento_Calendario === it.id);
+
+            if (isCancelled) {
+              if (matchEvent) {
+                await fetch(`/api/eventos/${matchEvent.ID_Actividad}`, { method: "DELETE" });
+                didChange = true;
+              }
+              if (matchMeta) {
+                await fetch(`/api/metas/${matchMeta.ID_Meta}`, { method: "DELETE" });
+                didChange = true;
+              }
+              if (matchMm) {
+                await fetch(`/api/micrometas/${matchMm.ID_Micrometa}`, { method: "DELETE" });
+                didChange = true;
+              }
+            } else {
+              if (deletedList.includes(it.id)) {
+                continue;
+              }
+              const startVal = it.start?.dateTime || it.start?.date || "";
+              const endVal = it.end?.dateTime || it.end?.date || "";
+              const dateStr = startVal.slice(0, 10) || new Date().toISOString().split("T")[0];
+              const summaryText = it.summary || "Importado de GCal";
+              const descText = it.description || "Sincronizado desde Google Calendar.";
+
+              if (!matchEvent && !matchMeta && !matchMm) {
+                const activityId = `gcal-import-${it.id}`;
+                const newActivity = {
+                  ID_Usuario: activeUser.ID_Usuario,
+                  ID_Evento: it.id,
+                  ID_Actividad: activityId,
+                  Tipo_Agenda: "Agenda_Personal",
+                  Pilar: "Personal",
+                  Pilar_Asociado: "Personal",
+                  Titulo_Actividad: summaryText,
+                  Titulo: summaryText,
+                  Descripcion_Detallada: descText,
+                  Descripcion: descText,
+                  Fecha_Hora_Inicio: startVal.includes("T") ? startVal.slice(0, 16) : `${dateStr}T10:00`,
+                  Fecha_Hora_Fin: endVal.includes("T") ? endVal.slice(0, 16) : `${dateStr}T11:00`,
+                  Requiere_Pago: 0,
+                  ID_Egreso_Asociado: null,
+                  Fecha: dateStr,
+                  Tipo_Evento: "FDLA",
+                  Color: "indigo",
+                  Alerta_Descalce: 0
+                };
+                
+                await fetch("/api/eventos", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(newActivity)
+                });
+                didChange = true;
+              } else if (matchEvent) {
+                const localStart = matchEvent.Fecha_Hora_Inicio || "";
+                const localEnd = matchEvent.Fecha_Hora_Fin || "";
+                const remoteStart = startVal.includes("T") ? startVal.slice(0, 16) : `${dateStr}T10:00`;
+                const remoteEnd = endVal.includes("T") ? endVal.slice(0, 16) : `${dateStr}T11:00`;
+                
+                if (
+                  matchEvent.Titulo !== summaryText ||
+                  matchEvent.Descripcion !== descText ||
+                  localStart.slice(0, 16) !== remoteStart ||
+                  localEnd.slice(0, 16) !== remoteEnd
+                ) {
+                  const updatedPayload = {
+                    ...matchEvent,
+                    Titulo_Actividad: summaryText,
+                    Titulo: summaryText,
+                    Descripcion_Detallada: descText,
+                    Descripcion: descText,
+                    Fecha_Hora_Inicio: remoteStart,
+                    Fecha_Hora_Fin: remoteEnd,
+                    Fecha: dateStr
+                  };
+                  await fetch(`/api/eventos/${matchEvent.ID_Actividad}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(updatedPayload)
+                  });
+                  didChange = true;
+                }
+              } else if (matchMeta) {
+                const remoteStart = startVal.slice(0, 10);
+                const cleanSummary = summaryText.replace(/^🎯 Meta: /, "");
+                if (matchMeta.Meta_SMART !== cleanSummary || matchMeta.Fecha_Meta !== remoteStart) {
+                  await fetch(`/api/metas/${matchMeta.ID_Meta}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      ...matchMeta,
+                      Meta_SMART: cleanSummary,
+                      Fecha_Meta: remoteStart
+                    })
+                  });
+                  didChange = true;
+                }
+              } else if (matchMm) {
+                const remoteStart = startVal.slice(0, 10);
+                const cleanSummary = summaryText.replace(/^🏁 Micrometa: /, "");
+                if (matchMm.Titulo !== cleanSummary || matchMm.Fecha_Planificada !== remoteStart) {
+                  await fetch(`/api/micrometas/${matchMm.ID_Micrometa}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      ...matchMm,
+                      Titulo: cleanSummary,
+                      Fecha_Planificada: remoteStart
+                    })
+                  });
+                  didChange = true;
+                }
+              }
+            }
+          }
+
+          if (didChange) {
+            const fetchRes = await fetch(`/api/data?userId=${activeUser.ID_Usuario}`);
+            if (fetchRes.ok) {
+              const data = await fetchRes.json();
+              setIngresos(data.ingresos || []);
+              setEgresos(data.egresos || []);
+              setDeudas(data.deudas || []);
+              setMetas(data.metas || []);
+              setEventos(data.eventos || []);
+              setMicrometas(data.micrometas || []);
+            }
+          }
         } else {
           setGoogleEvents([]);
         }
-      } catch {
+      } catch (err) {
+        console.error("Reconciliation error:", err);
         setGoogleEvents([]);
       } finally {
         setGcalLoading(false);
       }
     };
     fetchGoogleCalendar();
-  }, [activeUser.ID_Usuario]);
+  }, [activeUser.ID_Usuario, isInitialLoadComplete]);
 
   // --- KPI CALCULATIONS ---
-  const totalIncomes = useMemo(() => ingresos.reduce((s, i) => s + i.Monto_Neto, 0), [ingresos]);
-  const totalExpenses = useMemo(() => egresos.reduce((s, e) => s + e.Monto, 0), [egresos]);
-  const netBalance = useMemo(() => totalIncomes - totalExpenses, [totalIncomes, totalExpenses]);
-  const totalDebt = useMemo(() => deudas.filter(d => d.Tipo === TipoTarjeta.CREDITO).reduce((s, d) => s + d.Deuda_Actual, 0), [deudas]);
+  const totalIncomes = useMemo(() => {
+    const localToday = new Date().toLocaleDateString("sv-SE");
+    const utcToday = new Date().toISOString().split("T")[0];
+    const today = localToday > utcToday ? localToday : utcToday;
+    return ingresos
+      .filter(i => i.Fecha <= today)
+      .reduce((s, i) => s + i.Monto_Neto, 0);
+  }, [ingresos]);
+
+  const totalExpenses = useMemo(() => {
+    const localToday = new Date().toLocaleDateString("sv-SE");
+    const utcToday = new Date().toISOString().split("T")[0];
+    const today = localToday > utcToday ? localToday : utcToday;
+    return egresos
+      .filter(e => e.Fecha <= today)
+      .reduce((s, e) => s + e.Monto, 0);
+  }, [egresos]);
+
+  const totalDebitAvailable = useMemo(() => {
+    return deudas
+      .filter(d => d.Saldo_Disponible > 0)
+      .reduce((s, d) => s + d.Saldo_Disponible, 0);
+  }, [deudas]);
+
+  const totalCreditDebt = useMemo(() => {
+    return deudas
+      .filter(d => d.Tipo === TipoTarjeta.CREDITO)
+      .reduce((s, d) => s + d.Deuda_Actual, 0);
+  }, [deudas]);
+
+  const netBalance = useMemo(() => {
+    return (totalIncomes - totalExpenses) + totalDebitAvailable;
+  }, [totalIncomes, totalExpenses, totalDebitAvailable]);
+
+  const netCards = useMemo(() => {
+    return totalDebitAvailable - totalCreditDebt;
+  }, [totalDebitAvailable, totalCreditDebt]);
 
   // Recharts Expense Distribution per Pillar
   const pillarChartData = useMemo(() => {
@@ -300,8 +523,54 @@ export default function DashboardTab({
       });
     });
 
+    // Add metas to the calendar
+    metas.forEach(meta => {
+      if (meta.Fecha_Meta) {
+        // meta.Pilar can be an ID_Pilar or a CategoriaPilar name
+        const metaPilarObj = pilares.find(p => p.ID_Pilar === meta.Pilar || p.Nombre === meta.Pilar);
+        const metaPilarNombre = metaPilarObj?.Nombre || meta.Pilar;
+        const metaHexColor = metaPilarObj?.Color && metaPilarObj.Color.startsWith("#")
+          ? metaPilarObj.Color : "#10b981";
+        list.push({
+          ID_Actividad: `evt-meta-${meta.ID_Meta}`,
+          Titulo_Actividad: `🎯 Meta: ${meta.Meta_SMART}`,
+          Descripcion_Detallada: `Pilar: ${metaPilarNombre} | Indicador: ${meta.Indicador_Exito} | Presupuesto: $${meta.Presupuesto_Asignado}`,
+          Fecha: meta.Fecha_Meta,
+          Fecha_Hora_Inicio: `${meta.Fecha_Meta}T09:00`,
+          Pilar: metaPilarNombre,
+          Color: metaHexColor,
+          Requiere_Pago: false
+        });
+      }
+    });
+
+    // Add micrometas to the calendar — resolve pilar name from parent meta
+    micrometas.forEach(mm => {
+      if (mm.Fecha_Planificada) {
+        const parentMeta = metas.find(m => m.ID_Meta === mm.ID_Meta);
+        // parentMeta.Pilar may be an ID_Pilar or a name string
+        const parentPilarObj = parentMeta
+          ? pilares.find(p => p.ID_Pilar === parentMeta.Pilar || p.Nombre === parentMeta.Pilar)
+          : null;
+        const parentPilarNombre = parentPilarObj?.Nombre || parentMeta?.Pilar || "Sin Pilar";
+        const mmHexColor = parentPilarObj?.Color && parentPilarObj.Color.startsWith("#")
+          ? parentPilarObj.Color : "#14b8a6";
+        list.push({
+          ID_Actividad: `evt-micrometa-${mm.ID_Micrometa}`,
+          Titulo_Actividad: `🏁 Submeta: ${mm.Titulo}`,
+          Descripcion_Detallada: `Estado: ${mm.Estado} | Gasto: $${mm.Monto_Gasto}`,
+          Fecha: mm.Fecha_Planificada,
+          Fecha_Hora_Inicio: `${mm.Fecha_Planificada}T10:00`,
+          Pilar: parentPilarNombre,
+          Color: mmHexColor,
+          Requiere_Pago: mm.Genera_Gasto === 1,
+          Estado: mm.Estado
+        });
+      }
+    });
+
     return list;
-  }, [eventos, deudas, googleEvents]);
+  }, [eventos, deudas, googleEvents, metas, micrometas, pilares]);
 
   // Events filtered by the clicked date
   const selectedDayEvents = useMemo(() => {
@@ -335,13 +604,6 @@ export default function DashboardTab({
         if (isPaidNow) {
           const card = deudas.find(c => c.ID_Instrumento === tarjetaId);
           if (!card) throw new Error("Tarjeta no encontrada.");
-
-          if (card.Tipo === TipoTarjeta.DEBITO && card.Saldo_Disponible < parseMonto) {
-            throw new Error(`Saldo insuficiente en cuenta de Débito: Tienes $${card.Saldo_Disponible} pero el gasto es de $${parseMonto}.`);
-          }
-          if (card.Tipo === TipoTarjeta.CREDITO && card.Saldo_Disponible < parseMonto) {
-            throw new Error(`Límite insuficiente en tarjeta de Crédito: Tienes $${card.Saldo_Disponible} de cupo libre.`);
-          }
 
           // 1. Save Egreso in SQLite
           egresoId = "egr-" + Math.random().toString(36).substring(2, 9);
@@ -377,7 +639,7 @@ export default function DashboardTab({
             updatedCard = {
               ...card,
               Deuda_Actual: nextDeuda,
-              Saldo_Disponible: Math.max(0, card.Limite_Credito - nextDeuda),
+              Saldo_Disponible: card.Limite_Credito - nextDeuda,
               Balance_Total_Pendiente: nextDeuda,
               Saldo_Al_Corte: nextDeuda,
               Pago_Para_No_Generar_Intereses: card.Pago_Para_No_Generar_Intereses + (parseMonto * 0.15)
@@ -467,12 +729,12 @@ export default function DashboardTab({
       } else {
         // Save Event in SQLite
         const activityId = "act-" + Math.random().toString(36).substring(2, 9) + "-" + Date.now();
-        const color: "green" | "blue" | "indigo" | "orange" | "purple" = 
-          pilar === CategoriaPilar.SALUD ? "green" 
-          : pilar === CategoriaPilar.ESCOLAR ? "blue"
-          : pilar === CategoriaPilar.LABORAL ? "indigo"
-          : pilar === CategoriaPilar.PERSONAL ? "orange"
-          : "purple";
+        const pilarObj = pilares.find(p => p.Nombre === pilar);
+        const pilarColorHex: string = pilarObj?.Color
+          ? (pilarObj.Color.startsWith("#") ? pilarObj.Color : "#3b82f6")
+          : "#3b82f6";
+        // Keep the legacy string color field for backward compat (stored as-is in DB)
+        const color = pilarColorHex;
 
         const startHourMin = dateTimeInputVal.includes("T") ? dateTimeInputVal.split("T")[1] : "10:00";
 
@@ -574,25 +836,56 @@ export default function DashboardTab({
     }
   };
 
-  const handleDeleteEvent = async (id: string) => {
-    if (!window.confirm("¿Seguro que deseas eliminar esta actividad permanentemente?")) return;
 
+
+  const executeDeleteEvent = async (id: string) => {
     try {
-      const eventToDelete = eventos.find(ev => ev.ID_Actividad === id);
-      const googleEventId = eventToDelete?.ID_Evento;
+      let googleEventId: string | undefined = undefined;
+      if (id.startsWith("evt-meta-")) {
+        const metaId = id.replace("evt-meta-", "");
+        googleEventId = metas.find(m => m.ID_Meta === metaId)?.ID_Evento_Calendario;
+      } else if (id.startsWith("evt-micrometa-")) {
+        const mmId = id.replace("evt-micrometa-", "");
+        googleEventId = micrometas.find(m => m.ID_Micrometa === mmId)?.ID_Evento_Calendario;
+      } else {
+        const eventToDelete = eventos.find(ev => ev.ID_Actividad === id);
+        googleEventId = eventToDelete?.ID_Evento || id;
+      }
 
       const gToken = getValidGoogleToken();
 
-      if (googleEventId && !googleEventId.startsWith("g-") && !googleEventId.startsWith("evt-") && !googleEventId.startsWith("mock-") && gToken && !gToken.startsWith("mock_google_token_")) {
+      if (
+        googleEventId && 
+        !googleEventId.startsWith("act-") && 
+        !googleEventId.startsWith("g-") && 
+        !googleEventId.startsWith("evt-") && 
+        !googleEventId.startsWith("mock-") && 
+        !googleEventId.startsWith("imported-") && 
+        gToken && 
+        !gToken.startsWith("mock_google_token_")
+      ) {
         try {
+          const isRecur = googleEventId.includes("_");
           await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`, {
-            method: "DELETE",
+            method: isRecur ? "PATCH" : "DELETE",
             headers: {
-              "Authorization": `Bearer ${gToken}`
-            }
+              "Authorization": `Bearer ${gToken}`,
+              ...(isRecur ? { "Content-Type": "application/json" } : {})
+            },
+            body: isRecur ? JSON.stringify({ status: "cancelled" }) : undefined
           });
         } catch (syncErr) {
           console.error("Google Calendar delete failed:", syncErr);
+        }
+      }
+
+      // Add to local storage blocklist to prevent sync loop re-import
+      if (googleEventId) {
+        const deletedKey = `pilar5_deleted_gcal_${activeUser.ID_Usuario}`;
+        const deletedList = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+        if (!deletedList.includes(googleEventId)) {
+          deletedList.push(googleEventId);
+          localStorage.setItem(deletedKey, JSON.stringify(deletedList));
         }
       }
 
@@ -623,11 +916,34 @@ export default function DashboardTab({
       }
 
       setEditSuccess("Actividad eliminada con éxito.");
-      setTimeout(() => setEditSuccess(""), 3000);
+      setTimeout(() => {
+        setEditSuccess("");
+        setShowDayModal(false);
+      }, 1000);
     } catch (err: any) {
       setEditError(err.message || "Error al eliminar.");
       setTimeout(() => setEditError(""), 3000);
     }
+  };
+
+  const handleDeleteEvent = (id: string) => {
+    let concept = "";
+    if (id.startsWith("evt-meta-")) {
+      const metaId = id.replace("evt-meta-", "");
+      concept = metas.find(m => m.ID_Meta === metaId)?.Meta_SMART || "Meta";
+    } else if (id.startsWith("evt-micrometa-")) {
+      const mmId = id.replace("evt-micrometa-", "");
+      concept = micrometas.find(mm => mm.ID_Micrometa === mmId)?.Titulo || "Micrometa";
+    } else {
+      concept = eventos.find(ev => ev.ID_Actividad === id)?.Titulo_Actividad || eventos.find(ev => ev.ID_Actividad === id)?.Titulo || "Actividad";
+    }
+
+    setConfirmDialog({
+      isOpen: true,
+      title: "Confirmar Eliminación",
+      message: `¿Estás seguro de que deseas eliminar permanentemente la actividad/meta "${concept}"? Esta acción no se puede deshacer y también la borrará de Google Calendar si está sincronizada.`,
+      onConfirm: () => executeDeleteEvent(id)
+    });
   };
 
   const handlePayEvent = async (ev: any) => {
@@ -672,14 +988,18 @@ export default function DashboardTab({
           setEventos(data.eventos || []);
           setMicrometas(data.micrometas || []);
         }
-        alert("💵 Pago procesado exitosamente y descontado de la tarjeta.");
+        if (ev.Requiere_Pago) {
+          alert("💵 Pago procesado exitosamente y descontado de la tarjeta.");
+        } else {
+          alert("🏁 Submeta marcada como completada exitosamente.");
+        }
       } else {
         const err = await res.json();
-        alert(`Error al procesar el pago: ${err.error || "Ocurrió un error."}`);
+        alert(`Error al procesar: ${err.error || "Ocurrió un error."}`);
       }
     } catch (err: any) {
       console.error(err);
-      alert(`Error al procesar el pago: ${err.message || err}`);
+      alert(`Error al procesar: ${err.message || err}`);
     }
   };
 
@@ -691,75 +1011,131 @@ export default function DashboardTab({
     setEditSuccess("");
 
     try {
-      const eventToEdit = eventos.find(ev => ev.ID_Actividad === editingEventId);
-      if (!eventToEdit) throw new Error("Actividad no encontrada.");
-
-      const updatedColor = 
-        editPilar === CategoriaPilar.SALUD ? "green" 
-        : editPilar === CategoriaPilar.ESCOLAR ? "blue"
-        : editPilar === CategoriaPilar.LABORAL ? "indigo"
-        : editPilar === CategoriaPilar.PERSONAL ? "orange"
-        : "purple";
-
-      const dateOnly = editFecha || eventToEdit.Fecha;
-      const startDateTime = `${dateOnly}T${editHoraInicio}`;
-      const endDateTime = `${dateOnly}T${editHoraFin}`;
-
-      const updatedPayload = {
-        Titulo_Actividad: editTitulo,
-        Titulo: editTitulo,
-        Pilar: editPilar,
-        Pilar_Asociado: editPilar,
-        Descripcion_Detallada: editDesc,
-        Descripcion: editDesc,
-        Fecha_Hora_Inicio: startDateTime,
-        Fecha_Hora_Fin: endDateTime,
-        Color: updatedColor,
-        Fecha: dateOnly
+      const cleanTitle = (t: string) => {
+        return t
+          .replace(/^🎯\s*Meta:\s*/, "")
+          .replace(/^🏁\s*Submeta:\s*/, "")
+          .replace(/^🏁\s*Micrometa:\s*/, "")
+          .replace(/^📌\s*Recordatorio:\s*/, "")
+          .trim();
       };
 
-      const googleEventId = eventToEdit.ID_Evento;
-      const gToken = getValidGoogleToken();
+      const cleanedTitle = cleanTitle(editTitulo);
 
-      if (googleEventId && !googleEventId.startsWith("g-") && !googleEventId.startsWith("mock-") && gToken && !gToken.startsWith("mock_google_token_")) {
-        try {
-          await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`, {
-            method: "PUT",
-            headers: {
-              "Authorization": `Bearer ${gToken}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              summary: editTitulo,
-              description: editDesc,
-              start: {
-                dateTime: `${dateOnly}T${editHoraInicio}:00-06:00`
+      if (editingEventId.startsWith("evt-meta-")) {
+        const metaId = editingEventId.replace("evt-meta-", "");
+        const metaToEdit = metas.find(m => m.ID_Meta === metaId);
+        if (!metaToEdit) throw new Error("Meta no encontrada.");
+
+        const updatedPayload = {
+          ...metaToEdit,
+          Meta_SMART: cleanedTitle,
+          Fecha_Meta: editFecha,
+          Pilar: editPilar,
+        };
+
+        const res = await fetch(`/api/metas/${metaId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedPayload)
+        });
+
+        if (!res.ok) throw new Error("Fallo al guardar cambios de la meta en el servidor.");
+
+      } else if (editingEventId.startsWith("evt-micrometa-")) {
+        const mmId = editingEventId.replace("evt-micrometa-", "");
+        const mmToEdit = micrometas.find(m => m.ID_Micrometa === mmId);
+        if (!mmToEdit) throw new Error("Micrometa no encontrada.");
+
+        const updatedPayload = {
+          ...mmToEdit,
+          Titulo: cleanedTitle,
+          Fecha_Planificada: editFecha,
+        };
+
+        const res = await fetch(`/api/micrometas/${mmId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedPayload)
+        });
+
+        if (!res.ok) throw new Error("Fallo al guardar cambios de la micrometa en el servidor.");
+
+      } else {
+        const eventToEdit = eventos.find(ev => ev.ID_Actividad === editingEventId);
+        if (!eventToEdit) throw new Error("Actividad no encontrada.");
+
+        const editPilarObj = pilares.find(p => p.Nombre === editPilar);
+        const updatedColor: string = editPilarObj?.Color
+          ? (editPilarObj.Color.startsWith("#") ? editPilarObj.Color : "#3b82f6")
+          : (eventToEdit.Color as string) || "#3b82f6";
+
+        const dateOnly = editFecha || eventToEdit.Fecha;
+        const startDateTime = `${dateOnly}T${editHoraInicio}`;
+        const endDateTime = `${dateOnly}T${editHoraFin}`;
+
+        const updatedPayload = {
+          Titulo_Actividad: cleanedTitle,
+          Titulo: cleanedTitle,
+          Pilar: editPilar,
+          Pilar_Asociado: editPilar,
+          Descripcion_Detallada: editDesc,
+          Descripcion: editDesc,
+          Fecha_Hora_Inicio: startDateTime,
+          Fecha_Hora_Fin: endDateTime,
+          Color: updatedColor,
+          Fecha: dateOnly
+        };
+
+        const googleEventId = eventToEdit.ID_Evento;
+        const gToken = getValidGoogleToken();
+
+        if (googleEventId && !googleEventId.startsWith("g-") && !googleEventId.startsWith("evt-") && !googleEventId.startsWith("mock-") && gToken && !gToken.startsWith("mock_google_token_")) {
+          try {
+            await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`, {
+              method: "PUT",
+              headers: {
+                "Authorization": `Bearer ${gToken}`,
+                "Content-Type": "application/json"
               },
-              end: {
-                dateTime: `${dateOnly}T${editHoraFin}:00-06:00`
-              }
-            })
-          });
-        } catch (syncErr) {
-          console.error("Google Calendar update failed:", syncErr);
+              body: JSON.stringify({
+                summary: cleanedTitle,
+                description: editDesc,
+                start: {
+                  dateTime: `${dateOnly}T${editHoraInicio}:00-06:00`
+                },
+                end: {
+                  dateTime: `${dateOnly}T${editHoraFin}:00-06:00`
+                }
+              })
+            });
+          } catch (syncErr) {
+            console.error("Google Calendar update failed:", syncErr);
+          }
         }
+
+        const res = await fetch(`/api/eventos/${editingEventId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedPayload)
+        });
+
+        if (!res.ok) throw new Error("Fallo al guardar cambios en servidor.");
       }
 
-      const res = await fetch(`/api/eventos/${editingEventId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedPayload)
-      });
+      // Reload dataset to update all tabs
+      const fetchRes = await fetch(`/api/data?userId=${activeUser.ID_Usuario}`);
+      if (fetchRes.ok) {
+        const data = await fetchRes.json();
+        setIngresos(data.ingresos || []);
+        setEgresos(data.egresos || []);
+        setDeudas(data.deudas || []);
+        setMetas(data.metas || []);
+        setEventos(data.eventos || []);
+        setMicrometas(data.micrometas || []);
+      }
 
-      if (!res.ok) throw new Error("Fallo al guardar cambios en servidor.");
-
-      setEventos(prev => prev.map(ev => 
-        ev.ID_Actividad === editingEventId 
-          ? { ...ev, ...updatedPayload } 
-          : ev
-      ));
-
-      setEditSuccess("¡Actividad actualizada correctamente!");
+      setEditSuccess("¡Actualizado correctamente!");
       setTimeout(() => {
         setEditSuccess("");
         setEditingEventId(null);
@@ -767,12 +1143,8 @@ export default function DashboardTab({
     } catch (err: any) {
       setEditError(err.message || "Error al actualizar.");
     }
-  };
-
-
-
-  const periodicItems = useMemo(() => {
-    const list: Array<{ name: string; category: string; amount: number; period: string; color: string; detail: string }> = [];
+  };  const periodicItems = useMemo(() => {
+    const list: Array<{ name: string; category: string; amount: number; period: string; color: string; detail: string; isFallback?: boolean }> = [];
 
     // Filter fixed recurring egresos
     egresos.forEach(e => {
@@ -803,86 +1175,104 @@ export default function DashboardTab({
           amount: card.Pago_Para_No_Generar_Intereses || card.Pago_Minimo || 150.00,
           period: `Día ${card.Fecha_Limite_Pago} del mes`,
           color: "rose",
-          detail: `Corte: Día ${card.Fecha_Corte} | Pago Mínimo Obligatorio: $${card.Pago_Minimo} ${currency}`
+          detail: `Corte: Día ${card.Fecha_Corte} | Pago Mínimo Obligatorio: $${card.Pago_Minimo}${currency ? ` ${currency}` : ""}`
         });
       }
     });
 
-    // Fallback if list empty
-    if (list.length === 0) {
-      list.push({
-        name: "Renta de Departamento",
-        category: "Vivienda",
-        amount: 1200.00,
-        period: "Día 02 de cada mes",
-        color: "teal",
-        detail: "Fijo - Citi Checking Débito"
-      });
-      list.push({
-        name: "Plan de Internet + Telefonía Móvil",
-        category: "Comunicaciones",
-        amount: 45.00,
-        period: "Día 10 de cada mes",
-        color: "teal",
-        detail: "Cargo automático en TDC"
-      });
-    }
-
     return list;
-  }, [egresos, deudas]);
+  }, [egresos, deudas, currency]);
+
+  const formatAmount = (val: number) => {
+    const parts = (val || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).split(".");
+    return (
+      <>
+        <span>${parts[0]}</span>
+        <span className="text-[0.75em] font-semibold opacity-85">.{parts[1]}</span>
+      </>
+    );
+  };
+
+  const todayMicrometasAlerts = useMemo(() => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+    return micrometas.filter(m => m.Fecha_Planificada === todayStr && m.Estado === "Pendiente");
+  }, [micrometas]);
 
   return (
     <div className="space-y-8 animate-fadeIn font-sans">
       
+      {/* Notification card hidden — alerts now shown via bell icon in mobile bottom nav */}
+      
       {/* 1. Header & Quick KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         
-        <div className={`p-5 rounded-[2rem] border transition-all ${
+        <div className={`p-4 rounded-[1.75rem] border transition-all ${
           darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
         }`}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Ingresos</span>
-            <span className="p-1.5 rounded-xl bg-teal-500/10 text-teal-500"><TrendingUp className="w-4 h-4" /></span>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[9px] font-bold text-stone-500 uppercase tracking-widest">Ingresos</span>
+            <span className="p-1.5 rounded-xl bg-teal-500/10 text-teal-500"><TrendingUp className="w-3.5 h-3.5" /></span>
           </div>
-          <h3 className={`text-xl font-bold ${darkMode ? "text-white" : "text-stone-900"}`}>
-            ${totalIncomes.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-          </h3>
+          <p className={`text-sm font-bold leading-none ${darkMode ? "text-white" : "text-stone-900"}`}>
+            {formatAmount(totalIncomes)}
+          </p>
+          <p className="text-[9px] text-stone-400 mt-1.5">este período</p>
         </div>
 
-        <div className={`p-5 rounded-[2rem] border transition-all ${
+        <div className={`p-4 rounded-[1.75rem] border transition-all ${
           darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
         }`}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Gastos</span>
-            <span className="p-1.5 rounded-xl bg-rose-500/10 text-rose-500"><TrendingDown className="w-4 h-4" /></span>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[9px] font-bold text-stone-500 uppercase tracking-widest">Gastos</span>
+            <span className="p-1.5 rounded-xl bg-rose-500/10 text-rose-500"><TrendingDown className="w-3.5 h-3.5" /></span>
           </div>
-          <h3 className={`text-xl font-bold ${darkMode ? "text-white" : "text-stone-900"}`}>
-            ${totalExpenses.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-          </h3>
+          <p className={`text-sm font-bold leading-none ${darkMode ? "text-white" : "text-stone-900"}`}>
+            {formatAmount(totalExpenses)}
+          </p>
+          <p className="text-[9px] text-stone-400 mt-1.5">este período</p>
         </div>
 
-        <div className={`p-5 rounded-[2rem] border transition-all ${
+        <div className={`p-4 rounded-[1.75rem] border transition-all ${
           darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
         }`}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Balance</span>
-            <span className="p-1.5 rounded-xl bg-emerald-500/10 text-emerald-500"><Coins className="w-4 h-4" /></span>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[9px] font-bold text-stone-500 uppercase tracking-widest">Balance</span>
+            <span className="p-1.5 rounded-xl bg-emerald-500/10 text-emerald-500"><Coins className="w-3.5 h-3.5" /></span>
           </div>
-          <h3 className={`text-xl font-bold ${netBalance >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
-            ${netBalance.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-          </h3>
+          <p className={`text-sm font-bold leading-none ${netBalance >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+            {formatAmount(netBalance)}
+          </p>
+          <p className="text-[9px] text-stone-400 mt-1.5">{netBalance >= 0 ? "disponible" : "déficit"}</p>
         </div>
 
-        <div className={`p-5 rounded-[2rem] border transition-all ${
+        <div className={`p-4 rounded-[1.75rem] border transition-all ${
           darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
         }`}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Tarjetas</span>
-            <span className="p-1.5 rounded-xl bg-indigo-500/10 text-indigo-500"><CreditCard className="w-4 h-4" /></span>
+            <span className="text-[9px] font-bold text-stone-500 uppercase tracking-widest">Tarjetas</span>
+            <span className="p-1.5 rounded-xl bg-indigo-500/10 text-indigo-500"><CreditCard className="w-3.5 h-3.5" /></span>
           </div>
-          <h3 className={`text-xl font-bold ${darkMode ? "text-white" : "text-stone-900"}`}>
-            ${totalDebt.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-          </h3>
+          <div className="grid grid-cols-2 gap-1.5 border-t pt-2 border-stone-150 dark:border-stone-800">
+            <div>
+              <span className="text-[8px] text-stone-500 block uppercase font-bold tracking-wider">Disponible</span>
+              <span className="text-xs font-bold font-mono text-emerald-500">
+                {formatAmount(totalDebitAvailable)}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-[8px] text-stone-500 block uppercase font-bold tracking-wider">Deudas</span>
+              <span className="text-xs font-bold font-mono text-rose-500">
+                {totalCreditDebt > 0 ? "-" : ""}{formatAmount(totalCreditDebt)}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -991,14 +1381,15 @@ export default function DashboardTab({
               ) : (
                 <select
                   value={pilar}
-                  onChange={(e) => setPilar(e.target.value as CategoriaPilar)}
+                  onChange={(e) => setPilar(e.target.value)}
                   className="w-full text-xs p-3 rounded-2xl border focus:outline-none transition-all bg-white border-stone-300 text-stone-900 dark:bg-stone-950 dark:border-stone-850 dark:text-white"
                 >
-                  <option value={CategoriaPilar.SALUD}>🩺 Salud</option>
-                  <option value={CategoriaPilar.ESCOLAR}>📚 Escolar</option>
-                  <option value={CategoriaPilar.LABORAL}>💼 Laboral</option>
-                  <option value={CategoriaPilar.PERSONAL}>🍀 Personal</option>
-                  <option value={CategoriaPilar.AMOROSO}>💖 Amoroso</option>
+                  <option value="">-- Seleccionar Pilar --</option>
+                  {pilares.map(p => (
+                    <option key={p.ID_Pilar} value={p.Nombre}>
+                      {p.Nombre}
+                    </option>
+                  ))}
                 </select>
               )}
             </div>
@@ -1068,7 +1459,7 @@ export default function DashboardTab({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Monto ({currency})</label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Monto{currency ? ` (${currency})` : ""}</label>
                   <input
                     type="number"
                     required={requierePago}
@@ -1140,7 +1531,7 @@ export default function DashboardTab({
           {/* Submit Button */}
           <div className="w-full pt-2">
             <button type="submit" className="w-full py-3.5 rounded-2xl bg-teal-500 hover:bg-teal-650 text-white text-xs font-bold cursor-pointer transition-all shadow-md shadow-teal-500/10 flex items-center justify-center gap-1.5">
-              <span>{registroTipo === "micrometa" ? "Registrar Micrometa en Base de Datos" : "Registrar Actividad en Base de Datos"}</span>
+              <span>Registrar</span>
             </button>
           </div>
         </form>
@@ -1306,18 +1697,22 @@ export default function DashboardTab({
                 <div className="space-y-2.5">
                   <div className="flex items-baseline justify-between">
                     <span className="text-[10px] text-stone-500">Disponible:</span>
-                    <span className="text-base font-bold font-mono text-emerald-500">${card.Saldo_Disponible.toLocaleString()}</span>
+                    <span className={`text-base font-bold font-mono ${card.Saldo_Disponible > 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                      {formatAmount(card.Saldo_Disponible)}
+                    </span>
                   </div>
 
                   {isCredit && (
                     <>
                       <div className="flex justify-between text-[10px]">
                         <span className="text-stone-500">Deuda actual:</span>
-                        <span className="font-semibold text-rose-500">${card.Deuda_Actual.toLocaleString()}</span>
+                        <span className="font-semibold text-rose-500">
+                          {card.Deuda_Actual > 0 ? "-" : ""}{formatAmount(card.Deuda_Actual)}
+                        </span>
                       </div>
-                      <div className="flex justify-between text-[10px]">
+                      <div className="flex justify-between text-[10px] items-baseline">
                         <span className="text-stone-500">Pago mínimo / No-Intereses:</span>
-                        <span className="font-medium text-stone-400">${card.Pago_Minimo} / ${card.Pago_Para_No_Generar_Intereses}</span>
+                        <span className="font-medium text-stone-400 text-[10px]">{formatAmount(card.Pago_Minimo)} / {formatAmount(card.Pago_Para_No_Generar_Intereses)}</span>
                       </div>
                       <div className="flex justify-between text-[10px]">
                         <span className="text-stone-500">Corte / Límite:</span>
@@ -1336,31 +1731,46 @@ export default function DashboardTab({
       <div className={`p-6 rounded-[2.5rem] border transition-all ${
         darkMode ? "bg-stone-900/40 border-stone-900" : "bg-white border-stone-150 shadow-sm"
       }`}>
-        <h3 className={`text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-1.5 ${darkMode ? "text-stone-300" : "text-stone-850"}`}>
-          <Clock className="w-4 h-4 text-teal-500 animate-pulse" />
-          <span>Gastos y Adquisiciones Periódicos</span>
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${darkMode ? "text-stone-300" : "text-stone-850"}`}>
+            <Clock className="w-4 h-4 text-teal-500 animate-pulse" />
+            <span>Gastos y Adquisiciones Periódicos</span>
+          </h3>
+          {periodicItems.some(item => item.isFallback) && (
+            <span className="text-[10px] text-amber-500 dark:text-amber-400 font-semibold bg-amber-500/10 dark:bg-amber-500/5 px-2 py-0.5 rounded-lg border border-amber-500/20">
+              ⚠️ Ejemplos de muestra (se quitarán al registrar gastos Fijos en "Mis Datos" o Tarjetas)
+            </span>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[350px] overflow-y-auto pr-1">
-          {periodicItems.map((item, idx) => (
-            <div key={idx} className={`p-4 rounded-2xl border ${darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"}`}>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                  item.color === "rose" ? "bg-rose-500/10 text-rose-400" : "bg-teal-500/10 text-teal-400"
-                }`}>
-                  {item.category}
-                </span>
-                <span className="text-[10px] font-semibold text-stone-400">{item.period}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <h4 className={`text-xs font-bold truncate ${darkMode ? "text-white" : "text-stone-900"}`}>{item.name}</h4>
-                <span className={`text-xs font-mono font-bold ${item.color === "rose" ? "text-rose-500" : "text-teal-500"}`}>
-                  ${item.amount.toLocaleString()} {currency}
-                </span>
-              </div>
-              <p className="text-[11px] text-stone-500 mt-1">{item.detail}</p>
+          {periodicItems.length === 0 ? (
+            <div className={`col-span-full p-8 border border-dashed rounded-3xl text-center text-xs text-stone-500 italic ${
+              darkMode ? "bg-stone-950/20 border-stone-850" : "bg-stone-50/50 border-stone-200"
+            }`}>
+              No hay gastos o adquisiciones periódicas registradas.
             </div>
-          ))}
+          ) : (
+            periodicItems.map((item, idx) => (
+              <div key={idx} className={`p-4 rounded-2xl border ${darkMode ? "bg-stone-950/60 border-stone-850" : "bg-stone-50 border-stone-200"}`}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                    item.color === "rose" ? "bg-rose-500/10 text-rose-400" : "bg-teal-500/10 text-teal-400"
+                  }`}>
+                    {item.category}
+                  </span>
+                  <span className="text-[10px] font-semibold text-stone-400">{item.period}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className={`text-xs font-bold truncate ${darkMode ? "text-white" : "text-stone-900"}`}>{item.name}</h4>
+                  <span className={`text-xs font-mono font-bold ${item.color === "rose" ? "text-rose-500" : "text-teal-500"}`}>
+                    {formatAmount(item.amount)}{currency ? ` ${currency}` : ""}
+                  </span>
+                </div>
+                <p className="text-[11px] text-stone-500 mt-1">{item.detail}</p>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -1414,19 +1824,34 @@ export default function DashboardTab({
                         >
                           <div className="flex flex-col gap-1">
                             <div className="flex items-center justify-between">
-                              <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                                ev.Color === "green" ? "bg-emerald-500/10 text-emerald-400"
-                                : ev.Color === "blue" ? "bg-indigo-500/10 text-indigo-400"
-                                : ev.Color === "purple" ? "bg-purple-500/10 text-purple-400"
-                                : ev.Color === "orange" ? "bg-orange-500/10 text-orange-400"
-                                : "bg-rose-500/10 text-rose-400"
-                              }`}>
-                                {ev.Pilar}
-                              </span>
+                              {/* Pilar badge — uses the real hex color from pilares list */}
+                              {(() => {
+                                const evPilarObj = pilares.find(p => p.Nombre === ev.Pilar);
+                                const hexColor = evPilarObj?.Color && evPilarObj.Color.startsWith("#")
+                                  ? evPilarObj.Color
+                                  : ev.Color && (ev.Color as string).startsWith("#")
+                                    ? (ev.Color as string)
+                                    : null;
+                                return (
+                                  <span
+                                    className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
+                                    style={hexColor ? {
+                                      backgroundColor: hexColor + "22",
+                                      color: hexColor,
+                                      border: `1px solid ${hexColor}44`
+                                    } : {
+                                      backgroundColor: "rgba(99,102,241,0.1)",
+                                      color: "#818cf8"
+                                    }}
+                                  >
+                                    {ev.Pilar}
+                                  </span>
+                                );
+                              })()}
                               {ev.Requiere_Pago && (
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-bold text-rose-500 font-mono">
-                                    -${ev.Monto || ev.Monto_Gasto || 0} {currency}
+                                  <span className="text-[10px] font-bold text-rose-500 font-mono flex items-center">
+                                    -{formatAmount(ev.Monto || ev.Monto_Gasto || 0)}{currency ? ` ${currency}` : ""}
                                   </span>
                                   {(ev.ID_Egreso_Asociado || ev.Gasto_Pendiente === false || ev.Gasto_Pendiente === 0) ? (
                                     <span className="text-[8px] font-bold uppercase tracking-wide bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">
@@ -1452,21 +1877,29 @@ export default function DashboardTab({
                           </div>
 
                           {/* Action deck */}
-                          {!isGoogleEvent && (
-                            <div className="flex gap-2 justify-end border-t pt-2 border-stone-200 dark:border-stone-850">
-                              {ev.Requiere_Pago && !ev.ID_Egreso_Asociado && (ev.Gasto_Pendiente === true || ev.Gasto_Pendiente === 1 || ev.Gasto_Pendiente === undefined) && (
-                                <button
-                                  onClick={() => handlePayEvent(ev)}
-                                  className="py-1 px-3 rounded-lg text-[10px] font-bold border border-emerald-500/25 bg-emerald-500/5 hover:bg-emerald-500 hover:text-white text-emerald-450 cursor-pointer transition-all mr-auto"
-                                >
-                                  💵 Pagar Gasto Pendiente
-                                </button>
-                              )}
+                          <div className="flex gap-2 justify-end border-t pt-2 border-stone-200 dark:border-stone-850">
+                            {ev.Requiere_Pago && !ev.ID_Egreso_Asociado && (ev.Gasto_Pendiente === true || ev.Gasto_Pendiente === 1 || ev.Gasto_Pendiente === undefined) && (
+                              <button
+                                onClick={() => handlePayEvent(ev)}
+                                className="py-1 px-3 rounded-lg text-[10px] font-bold border border-emerald-500/25 bg-emerald-500/5 hover:bg-emerald-500 hover:text-white text-emerald-450 cursor-pointer transition-all mr-auto"
+                              >
+                                💵 Pagar Gasto Pendiente
+                              </button>
+                            )}
+                            {ev.ID_Actividad.startsWith("evt-micrometa-") && ev.Estado === "Pendiente" && !ev.Requiere_Pago && (
+                              <button
+                                onClick={() => handlePayEvent(ev)}
+                                className="py-1 px-3 rounded-lg text-[10px] font-bold border border-teal-500/25 bg-teal-500/5 hover:bg-teal-500 hover:text-white text-teal-400 cursor-pointer transition-all mr-auto"
+                              >
+                                ✓ Completar Submeta
+                              </button>
+                            )}
+                            {!isGoogleEvent && (
                               <button
                                 onClick={() => {
                                   setEditingEventId(ev.ID_Actividad);
                                   setEditTitulo(ev.Titulo_Actividad || ev.Titulo || "");
-                                  setEditPilar(ev.Pilar as CategoriaPilar);
+                                  setEditPilar(ev.Pilar || "");
                                   setEditDesc(ev.Descripcion_Detallada || ev.Descripcion || "");
                                   setEditHoraInicio(ev.Fecha_Hora_Inicio ? ev.Fecha_Hora_Inicio.slice(11, 16) : "10:00");
                                   setEditHoraFin(ev.Fecha_Hora_Fin ? ev.Fecha_Hora_Fin.slice(11, 16) : "11:00");
@@ -1476,14 +1909,14 @@ export default function DashboardTab({
                               >
                                 Editar
                               </button>
-                              <button
-                                onClick={() => handleDeleteEvent(ev.ID_Actividad)}
-                                className="py-1 px-3 rounded-lg text-[10px] font-bold border border-rose-500/25 bg-rose-500/5 hover:bg-rose-500 hover:text-white text-rose-455 cursor-pointer transition-all"
-                              >
-                                Eliminar
-                              </button>
-                            </div>
-                          )}
+                            )}
+                            <button
+                              onClick={() => handleDeleteEvent(ev.ID_Actividad)}
+                              className="py-1 px-3 rounded-lg text-[10px] font-bold border border-rose-500/25 bg-rose-500/5 hover:bg-rose-500 hover:text-white text-rose-455 cursor-pointer transition-all"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
                         </div>
                       );
                     })
@@ -1532,14 +1965,15 @@ export default function DashboardTab({
                     <label className="text-[9px] font-bold uppercase text-stone-500">Pilar</label>
                     <select
                       value={editPilar}
-                      onChange={(e) => setEditPilar(e.target.value as CategoriaPilar)}
+                      onChange={(e) => setEditPilar(e.target.value)}
                       className="w-full text-xs p-2.5 rounded-xl border focus:outline-none bg-white border-stone-300 text-stone-900 dark:bg-stone-900 dark:border-stone-800 dark:text-white"
                     >
-                      <option value={CategoriaPilar.SALUD}>🩺 Salud</option>
-                      <option value={CategoriaPilar.ESCOLAR}>📚 Escolar</option>
-                      <option value={CategoriaPilar.LABORAL}>💼 Laboral</option>
-                      <option value={CategoriaPilar.PERSONAL}>🍀 Personal</option>
-                      <option value={CategoriaPilar.AMOROSO}>💖 Amoroso</option>
+                      <option value="">-- Seleccionar Pilar --</option>
+                      {pilares.map(p => (
+                        <option key={p.ID_Pilar} value={p.Nombre}>
+                          {p.Nombre}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -1594,6 +2028,38 @@ export default function DashboardTab({
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Custom Confirm Dialog Component */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-stone-950/80 backdrop-blur-sm" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}></div>
+          <div className={`relative p-6 rounded-[2rem] border max-w-md w-full shadow-2xl transition-all scale-100 ${
+            darkMode ? "bg-stone-900 border-stone-850 text-white" : "bg-white border-stone-200 text-stone-900"
+          }`}>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-rose-500 mb-2">{confirmDialog.title}</h3>
+            <p className="text-xs text-stone-500 mb-6 leading-relaxed">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-3 text-xs">
+              <button
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                className={`px-4 py-2 rounded-xl border font-semibold hover:bg-stone-100 dark:hover:bg-stone-800 transition-all cursor-pointer ${
+                  darkMode ? "border-stone-800 text-stone-300" : "border-stone-250 text-stone-700"
+                }`}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                  confirmDialog.onConfirm();
+                }}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold shadow-md transition-all cursor-pointer"
+              >
+                Confirmar
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -115,7 +115,7 @@ export default function AuthPortal({
         <h1 className={`text-xl md:text-2xl font-semibold tracking-tight mb-1 ${
           darkMode ? "text-white" : "text-stone-900"
         }`}>
-          Control de 5 Pilares
+          XPH Control Tower
         </h1>
         <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">
           Consola Inteligente de Reconstrucción y Finanzas

@@ -191,7 +191,7 @@ export default function WorkspaceSyncTab({
     const token = customToken || accessToken;
     const expiresAt = localStorage.getItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
     if (token) {
-      const isExpired = expiresAt ? Date.now() > parseInt(expiresAt) : true;
+      const isExpired = expiresAt ? Date.now() > parseInt(expiresAt) : false;
       if (isExpired) {
         clearExpiredGoogleToken();
         return;
@@ -207,7 +207,33 @@ export default function WorkspaceSyncTab({
       if (res.ok) {
         const data = await res.json();
         const items = data.items || [];
-        setGoogleEvents(items.map((it: any) => ({
+        
+        const deletedKey = `pilar5_deleted_gcal_${activeUser.ID_Usuario}`;
+        const deletedList: string[] = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+
+        // Sweep and delete stale Google Calendar events that the user deleted locally
+        for (const item of items) {
+          if (item.status !== "cancelled" && deletedList.includes(item.id)) {
+            console.log(`[SYNC] Auto-deleting stale Google Calendar event from Google account: ${item.id}`);
+            try {
+              const isRecur = item.id.includes("_");
+              await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${item.id}`, {
+                method: isRecur ? "PATCH" : "DELETE",
+                headers: { 
+                  Authorization: `Bearer ${token}`,
+                  ...(isRecur ? { "Content-Type": "application/json" } : {})
+                },
+                body: isRecur ? JSON.stringify({ status: "cancelled" }) : undefined
+              });
+            } catch (err) {
+              console.error("Auto-delete stale Google event failed:", err);
+            }
+          }
+        }
+
+        const remainingItems = items.filter((it: any) => it.status !== "cancelled" && !deletedList.includes(it.id));
+
+        setGoogleEvents(remainingItems.map((it: any) => ({
           id: it.id,
           summary: it.summary || "Sin Título",
           description: it.description || "",
@@ -276,7 +302,19 @@ export default function WorkspaceSyncTab({
         throw new Error(`Error en servidor Google Calendar: ${res.statusText}`);
       }
 
-      await res.json();
+      const createdGEvent = await res.json();
+      
+      // Save Google Calendar event ID to SQLite
+      await fetch(`/api/eventos/${ev.ID_Actividad}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...ev,
+          ID_Evento: createdGEvent.id
+        })
+      });
+
+      setEventos(prev => prev.map(item => item.ID_Actividad === ev.ID_Actividad ? { ...item, ID_Evento: createdGEvent.id } : item));
       setSyncStatus(`¡Sincronizado! Evento "${ev.Titulo_Actividad}" exportado con éxito a Google Calendar.`);
       fetchGoogleCalendarEvents();
       alert(`🎉 ¡Evento agendado en tu Google Calendar real!`);
@@ -289,7 +327,7 @@ export default function WorkspaceSyncTab({
   };
 
   // Bidirectional Import from Google Calendar to 5 Pilares Local Agenda
-  const handleImportGoogleEvents = () => {
+  const handleImportGoogleEvents = async () => {
     if (googleEvents.length === 0) {
       alert("No hay eventos en Google Calendar disponibles para importar.");
       return;
@@ -307,7 +345,7 @@ export default function WorkspaceSyncTab({
 
       return {
         ID_Usuario: activeUser.ID_Usuario,
-        ID_Evento: uuid,
+        ID_Evento: g.id, // SAVE THE REAL GOOGLE CALENDAR EVENT ID!
         ID_Actividad: uuid,
         Tipo_Agenda: "Agenda_Personal",
         Pilar: CategoriaPilar.PERSONAL,
@@ -327,9 +365,22 @@ export default function WorkspaceSyncTab({
       };
     });
 
-    setEventos((prev) => [...prev, ...imported]);
-    setSyncStatus(`Se importaron exitosamente ${imported.length} actividades.`);
-    alert(`👍 ¡Importación completa! Se inyectaron ${imported.length} eventos a tu Agenda Local.`);
+    // Save to server SQLite DB
+    try {
+      for (const ev of imported) {
+        await fetch("/api/eventos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(ev)
+        });
+      }
+      setEventos((prev) => [...prev, ...imported]);
+      setSyncStatus(`Se importaron exitosamente ${imported.length} actividades.`);
+      alert(`👍 ¡Importación completa! Se inyectaron ${imported.length} eventos a tu Agenda Local.`);
+    } catch (err: any) {
+      console.error("Error saving imported events:", err);
+      alert("Ocurrió un error al persistir los eventos importados en la base de datos.");
+    }
   };
 
   // Add custom manual calendar event directly to Google via POST
@@ -379,7 +430,7 @@ export default function WorkspaceSyncTab({
     const token = customToken || accessToken;
     const expiresAt = localStorage.getItem(`pilar5_g_expires_at_${activeUser.ID_Usuario}`);
     if (token) {
-      const isExpired = expiresAt ? Date.now() > parseInt(expiresAt) : true;
+      const isExpired = expiresAt ? Date.now() > parseInt(expiresAt) : false;
       if (isExpired) {
         clearExpiredGoogleToken();
         return;
@@ -432,13 +483,13 @@ Plan de Suscripción: ${activeUser.Plan_Suscripcion}
 Aislamiento Lógico UUID: ${activeUser.ID_Usuario}
 
 ## 1. BALANCE GENERAL DE LIQUIDEZ Y FINANZAS (HORIZONTES)
-- Ingresos Totales Registrados: $${totalIncomes.toFixed(2)} USD
-- Egresos Consolidados del Periodo: $${totalExpenses.toFixed(2)} USD
-- Balance / Flujo Neto Mensual: $${netSavings.toFixed(2)} USD
-- Deuda Consolidada en Plásticos (TDC): $${activeDebts.toFixed(2)} USD
+- Ingresos Totales Registrados: $${totalIncomes.toFixed(2)}
+- Egresos Consolidados del Periodo: $${totalExpenses.toFixed(2)}
+- Balance / Flujo Neto Mensual: $${netSavings.toFixed(2)}
+- Deuda Consolidada en Plásticos (TDC): $${activeDebts.toFixed(2)}
 
 ## 2. METAS SMART REGISTRADAS (TABLA METAS)
-${metas.map((m, idx) => `${idx + 1}. [${m.Pilar}] SMART: "${m.Meta_SMART}" - Estado: ${m.Estado} (Asignado: $${m.Presupuesto_Asignado} USD)`).join("\n")}
+${metas.map((m, idx) => `${idx + 1}. [${m.Pilar}] SMART: "${m.Meta_SMART}" - Estado: ${m.Estado} (Asignado: $${m.Presupuesto_Asignado})`).join("\n")}
 
 ## 3. ACTIVIDADES CONTROLADAS (TABLA AGENDA)
 ${eventos.map((e, idx) => `- [${e.Fecha}] ${e.Titulo_Actividad} (${e.Pilar}) - Requiere Pago: ${e.Requiere_Pago ? "Sí" : "No"}`).join("\n")}
